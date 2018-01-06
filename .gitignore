@@ -1,3 +1,9 @@
+.metadata
+RemoteSystemsTempFiles
+YtaRobot/.settings
+YtaRobot/Debug
+YtaRobot/Release
+
 # Prerequisites
 *.d
 
