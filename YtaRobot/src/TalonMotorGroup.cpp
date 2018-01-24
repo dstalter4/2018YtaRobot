@@ -6,7 +6,7 @@
 /// A class designed to work with a group of CAN Talon speed controllers working
 /// in tandem.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   03-JAN-2015 Created from 2014.
 /// - dts   17-JAN-2015 Ported to CAN Talons.
 /// - dts   06-FEB-2015 Support for follow and inverse control.
@@ -38,22 +38,22 @@
 /// port numbers passed in.
 ///
 ////////////////////////////////////////////////////////////////
-TalonMotorGroup::TalonMotorGroup( int numInstances, int firstCANId, GroupControlMode controlMode, FeedbackDevice sensor )
-: m_NumMotors(numInstances)
+TalonMotorGroup::TalonMotorGroup( int numMotors, int firstCANId, MotorGroupControlMode controlMode, FeedbackDevice sensor )
+: m_NumMotors(numMotors)
 , m_pMotors()
 , m_ControlMode(controlMode)
 , m_Sensor(sensor)
 {
     // Allocate the necessary storage for all of the objects by invoking operator new[]
     // Assign the returned memory block to the first pointer in the array
-    //m_pMotors[0] =  reinterpret_cast<TalonSRX *>( operator new[] (numInstances * sizeof(TalonSRX)) );
+    //m_pMotors[0] =  reinterpret_cast<TalonSRX *>( operator new[] (numMotors * sizeof(TalonSRX)) );
 
     // CAN Talons can be set to follow, which the motor groups
     // may do, so save off the first id as the master
     int masterId = firstCANId;
 
     // Loop for each motor to create
-    for ( int i = 0; i < numInstances; i++ )
+    for ( int i = 0; i < numMotors; i++ )
     {
         // Create it
         m_pMotors[i] = new TalonSRX(firstCANId++);
@@ -230,11 +230,11 @@ void TalonMotorGroup::SetWithOffset( float group1Value, float group2Value )
             // (i.e. 1:n motors, 1:n/2 forward, n/2:n reverse
             for (int i = 0; i < m_NumMotors / 2; i++)
             {
-               m_pMotors[i]->Set(ControlMode::PercentOutput, group1Value);
+                m_pMotors[i]->Set(ControlMode::PercentOutput, group1Value);
             }
             for (int i = m_NumMotors / 2; i < m_NumMotors; i++)
             {
-                   m_pMotors[i]->Set(ControlMode::PercentOutput, group2Value);
+                m_pMotors[i]->Set(ControlMode::PercentOutput, group2Value);
             }
             break;
         }
@@ -246,11 +246,11 @@ void TalonMotorGroup::SetWithOffset( float group1Value, float group2Value )
             // (i.e. 1:n motors, 1:n/2 forward, n/2:n reverse
             for (int i = 0; i < m_NumMotors / 2; i++)
             {
-               m_pMotors[i]->Set(ControlMode::PercentOutput, group1Value);
+                m_pMotors[i]->Set(ControlMode::PercentOutput, group1Value);
             }
             for (int i = m_NumMotors / 2; i < m_NumMotors; i++)
             {
-                   m_pMotors[i]->Set(ControlMode::PercentOutput, -group2Value);
+                m_pMotors[i]->Set(ControlMode::PercentOutput, -group2Value);
             }
             break;
         }

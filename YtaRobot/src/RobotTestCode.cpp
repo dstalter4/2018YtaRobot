@@ -6,7 +6,7 @@
 /// Implementation of the YtaRobot test functions.  This keeps official stable
 /// robot code isolated.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   03-JAN-2015 Created.
 /// @endif
 ///
@@ -35,11 +35,6 @@ void YtaRobot::AutonomousTestCode()
     // Motors off
     m_pLeftDriveMotor->Set(OFF);
     m_pRightDriveMotor->Set(OFF);
-    
-    // Done, just loop
-    while ( m_pDriverStation->IsAutonomous() )
-    {
-    }
 }
 
 
@@ -87,8 +82,8 @@ void YtaRobot::MotorTest()
     static bool bInitialized = false;
     if (!bInitialized)
     {
-        pDriveJoystick = new Joystick(DRIVE_JOYSTICK);
-        pControlJoystick = new Joystick(CONTROL_JOYSTICK);
+        pDriveJoystick = new Joystick(DRIVE_JOYSTICK_PORT);
+        pControlJoystick = new Joystick(CONTROL_JOYSTICK_PORT);
         
         pLeft1 = new TalonSRX(LEFT_MOTORS_CAN_START_ID);
         pLeft2 = new TalonSRX(LEFT_MOTORS_CAN_START_ID + 1);

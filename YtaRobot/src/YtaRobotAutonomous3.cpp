@@ -5,7 +5,7 @@
 /// @details
 /// Implementation of autonomous routine 3 for YtaRobot.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
 /// @endif
 ///

@@ -5,7 +5,7 @@
 /// @details
 /// Implementation of autonomous routines for YtaRobot.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
 /// @endif
 ///
@@ -32,12 +32,27 @@
 ////////////////////////////////////////////////////////////////
 void YtaRobot::Autonomous()
 {
+    DisplayMessage("Autonomous enter...");
+    
     // Put everything in a stable state
     InitialStateSetup();
     m_pAutonomousTimer->Stop();
     m_pAutonomousTimer->Reset();
     m_pSafetyTimer->Stop();
     m_pSafetyTimer->Reset();
+    
+    if (m_GameData[GAME_DATA_NEAR_SWITCH_INDEX] == FIELD_ELEMENT_LEFT_SIDE_CHARACTER)
+    {
+        DisplayMessage("Left side.");
+    }
+    else if (m_GameData[GAME_DATA_NEAR_SWITCH_INDEX] == FIELD_ELEMENT_RIGHT_SIDE_CHARACTER)
+    {
+        DisplayMessage("Right side.");
+    }
+    else
+    {
+        DisplayMessage("Invalid side.");
+    }
     
     // Change values in the header to control having an
     // autonomous routine and which is selected
@@ -46,40 +61,45 @@ void YtaRobot::Autonomous()
     //if ( YtaRobotAutonomous::ROUTINE_1 )
     if ( m_pAutonomous1Switch->Get() )
     {
+        DisplayMessage("Auto routine 1.");
         AutonomousRoutine1();
-        while ( m_pDriverStation->IsAutonomous()) {}
     }
     
     // Auto routine 2
     //else if ( YtaRobotAutonomous::ROUTINE_2 )
     else if ( m_pAutonomous2Switch->Get() )
     {
+        DisplayMessage("Auto routine 2.");
         AutonomousRoutine2();
-        while ( m_pDriverStation->IsAutonomous() ) {}
     }
     
     // Auto routine 3
     //else if ( YtaRobotAutonomous::ROUTINE_3 )
     else if ( m_pAutonomous3Switch->Get() )
     {
+        DisplayMessage("Auto routine 3.");
         AutonomousRoutine3();
-        while ( m_pDriverStation->IsAutonomous() ) {}
     }
 
     /* !!! ONLY ENABLE TEST AUTONOMOUS CODE WHEN TESTING
            SELECT A FUNCTIONING ROUTINE FOR ACTUAL MATCHES !!! */
     else if ( YtaRobotAutonomous::TEST_ENABLED )
     {
-        // This code will never return
         AutonomousTestCode();
     }
 
     else
     {
         // No option was selected; ensure known behavior to avoid issues
-        while ( m_pDriverStation->IsAutonomous() ) {}
+    }
+    
+    // Idle until auto is terminated
+    DisplayMessage("Auto idle loop.");
+    while ( m_pDriverStation->IsAutonomous() && m_pDriverStation->IsEnabled() )
+    {
     }
 
+    DisplayMessage("Autonomous exit...");
 }   // End Autonomous
 
 
