@@ -6,7 +6,7 @@
 /// Contains the declarations for the autonomous portions of code ran in an FRC
 /// robot.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
 /// @endif
 ///

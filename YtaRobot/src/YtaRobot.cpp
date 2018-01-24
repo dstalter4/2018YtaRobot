@@ -8,10 +8,11 @@
 /// control routines as well as all necessary support for interacting with all
 /// motors, sensors and input/outputs on the robot.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   09-JAN-2016 Created from 2015.
 /// - dts   08-JAN-2017 Ported from 2016.
-/// - dts   06-JAN-2018 Ported from 2017 amd adopted to CTRE Phoenix.
+/// - dts   06-JAN-2018 Ported from 2017 and adopted to CTRE Phoenix.
+/// - dts   20-JAN-2018 Add support for Logitech Gamepad controllers.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -40,15 +41,21 @@
 ////////////////////////////////////////////////////////////////
 YtaRobot::YtaRobot()
 : m_pDriverStation              (&DriverStation::GetInstance())
-, m_pDriveJoystick              (new Joystick(DRIVE_JOYSTICK))
-, m_pControlJoystick            (new Joystick(CONTROL_JOYSTICK))
-, m_pLeftDriveMotor             (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, GroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
-, m_pRightDriveMotor            (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, GroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
+, m_pDriveJoystick              (new Joystick(DRIVE_JOYSTICK_PORT))
+, m_pControlJoystick            (new Joystick(CONTROL_JOYSTICK_PORT))
+, m_pLogitechDriveGamepad       (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
+, m_pLogitechControlGamepad     (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
+, m_pLeftDriveMotor             (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
+, m_pRightDriveMotor            (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
+, m_pFrontSideDriveMotor        (new TalonMotorGroup(SINGLE_MOTOR, FRONT_SIDE_DRIVE_MOTOR_CAN_ID, MotorGroupControlMode::INDEPENDENT, FeedbackDevice::None))
+, m_pRearSideDriveMotor         (new TalonMotorGroup(SINGLE_MOTOR, REAR_SIDE_DRIVE_MOTOR_CAN_ID, MotorGroupControlMode::INDEPENDENT, FeedbackDevice::None))
 , m_pLedRelay                   (new Relay(LED_RELAY_ID))
 , m_pAutonomous1Switch          (new DigitalInput(AUTONOMOUS_1_SWITCH))
 , m_pAutonomous2Switch          (new DigitalInput(AUTONOMOUS_2_SWITCH))
 , m_pAutonomous3Switch          (new DigitalInput(AUTONOMOUS_3_SWITCH))
 , m_pGyro                       (new AnalogGyro(ANALOG_GYRO_CHANNEL))
+, m_pTestSingleSolenoid         (new Solenoid(SINGLE_SOLENOID_TEST_CHANNEL))
+, m_pTestDoubleSolenoid         (new DoubleSolenoid(DOUBLE_SOLENOID_TEST_CHANNEL_1, DOUBLE_SOLENOID_TEST_CHANNEL_2))
 , m_pAutonomousTimer            (new Timer())
 , m_pInchingDriveTimer          (new Timer())
 , m_pI2cTimer                   (new Timer())
@@ -66,9 +73,12 @@ YtaRobot::YtaRobot()
 , m_I2cData                     ()
 , m_pI2cPort                    (new I2C(I2C::kMXP, I2C_DEVICE_ADDRESS))
 , m_AllianceColor               (m_pDriverStation->GetAlliance())
+, m_GameData                    ()
 , m_bDriveSwap                  (false)
 , m_bLed                        (false)
 {
+    DisplayMessage("Robot constructor.");
+    
     // Reset all timers
     m_pAutonomousTimer->Reset();
     m_pInchingDriveTimer->Reset();
@@ -78,7 +88,9 @@ YtaRobot::YtaRobot()
 
     // Reset the serial port
     m_pSerialPort->Reset();
-
+    
+    CameraServer::GetInstance()->StartAutomaticCapture();
+    
     // Set camera quality
     //m_Cam0.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
     //m_Cam1.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
@@ -124,8 +136,9 @@ void YtaRobot::InitialStateSetup()
     m_pI2cTimer->Reset();
     m_pI2cTimer->Start();
     
-    // Just in case constructor was called before this was set
+    // Just in case constructor was called before these were set (likely the case)
     m_AllianceColor = m_pDriverStation->GetAlliance();
+    m_GameData = m_pDriverStation->GetGameSpecificMessage();
 }
 
 
@@ -139,9 +152,10 @@ void YtaRobot::InitialStateSetup()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::OperatorControl()
 {
+    DisplayMessage("Teleop enter...");
+    
     // Autonomous should have left things in a known state, but
-    // just in case clear everything.  Timers were reset in the
-    // constructor, no need to do it again
+    // just in case clear everything.
     InitialStateSetup();
     
     // Teleop will use coast mode
@@ -152,11 +166,12 @@ void YtaRobot::OperatorControl()
     m_pRightDriveMotor->SetBrakeMode();
     
     // Main tele op loop
-    while ( m_pDriverStation->IsOperatorControl() )
+    while ( m_pDriverStation->IsOperatorControl() && m_pDriverStation->IsEnabled() )
     {
         //CheckForDriveSwap();
 
         DriveControlSequence();
+        SideDriveSequence();
         
         //LedSequence();
 
@@ -182,6 +197,8 @@ void YtaRobot::OperatorControl()
         // END TEST CODE
         
     } // End main OperatorControl loop
+    
+    DisplayMessage("Teleop exit...");
 } // End OperatorControl
 
 
@@ -358,13 +375,34 @@ void YtaRobot::CameraSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DriveControlSequence()
 {
-    // Computes what the maximum drive speed could be
-    float throttleControl = GetThrottleControl(m_pDriveJoystick);
-
-    // Get joystick inputs and make sure they clear a certain threshold.
-    // This will help to drive straight.
-    float xAxisDrive = Trim((m_pDriveJoystick->GetX() * throttleControl), JOYSTICK_TRIM_UPPER_LIMIT, JOYSTICK_TRIM_LOWER_LIMIT);
-    float yAxisDrive = Trim((m_pDriveJoystick->GetY() * throttleControl), JOYSTICK_TRIM_UPPER_LIMIT, JOYSTICK_TRIM_LOWER_LIMIT);
+    float throttleControl = 0.0F;
+    float xAxisDrive = 0.0F;
+    float yAxisDrive = 0.0F;
+    if (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME)
+    {
+        // Computes what the maximum drive speed could be
+        throttleControl = GetThrottleControl(m_pDriveJoystick);
+        
+        // Get joystick X/Y inputs
+        xAxisDrive = m_pDriveJoystick->GetX();
+        yAxisDrive = m_pDriveJoystick->GetY();
+    }
+    else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
+    {
+        // Computes what the maximum drive speed could be
+        throttleControl = GetThrottleControl(m_pLogitechDriveGamepad);
+        
+        // Get gamepad X/Y inputs
+        xAxisDrive = m_pLogitechDriveGamepad->GetX();
+        yAxisDrive = m_pLogitechDriveGamepad->GetY();
+    }
+    else
+    {
+    }
+    
+    // Make sure axes inputs clear a certain threshold.  This will help to drive straight.
+    xAxisDrive = Trim((xAxisDrive * throttleControl), JOYSTICK_TRIM_UPPER_LIMIT, JOYSTICK_TRIM_LOWER_LIMIT);
+    yAxisDrive = Trim((yAxisDrive * throttleControl), JOYSTICK_TRIM_UPPER_LIMIT, JOYSTICK_TRIM_LOWER_LIMIT);
 
     // If the swap direction button was pressed, negate y value
     if ( m_bDriveSwap )
@@ -407,6 +445,56 @@ void YtaRobot::DriveControlSequence()
         m_pRightDriveMotor->Set(rightSpeed);
     }
     */
+}
+
+
+
+////////////////////////////////////////////////////////////////
+/// @method YtaRobot::SideDriveSequence
+///
+/// This method contains the main workflow for controlling side
+/// drive.  It will check the user input and update the correct
+/// motor as appropriate.
+///
+////////////////////////////////////////////////////////////////
+void YtaRobot::SideDriveSequence()
+{
+    bool bSideDriveLeft = false;
+    bool bSideDriveRight = false;
+    if (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME)
+    {
+        bSideDriveLeft = m_pDriveJoystick->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
+        bSideDriveRight = m_pDriveJoystick->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
+
+    }
+    else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
+    {
+        bSideDriveLeft = m_pLogitechDriveGamepad->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
+        bSideDriveRight = m_pLogitechDriveGamepad->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
+    }
+    else
+    {
+    }
+    
+    if (bSideDriveLeft)
+    {
+        m_pTestSingleSolenoid->Set(false);
+        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kForward);
+        m_pFrontSideDriveMotor->Set(ON);
+        m_pRearSideDriveMotor->Set(ON);
+    }
+    else if (bSideDriveRight)
+    {
+        m_pTestSingleSolenoid->Set(true);
+        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kReverse);
+        m_pFrontSideDriveMotor->Set(-ON);
+        m_pRearSideDriveMotor->Set(-ON);
+    }
+    else
+    {
+        m_pFrontSideDriveMotor->Set(OFF);
+        m_pRearSideDriveMotor->Set(OFF);
+    }
 }
 
 
@@ -479,6 +567,19 @@ void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
 
 
 ////////////////////////////////////////////////////////////////
+/// @method YtaRobot::RobotInit
+///
+/// This method is run when initializing the robot.
+///
+////////////////////////////////////////////////////////////////
+void YtaRobot::RobotInit()
+{
+    DisplayMessage("RobotInit called.");
+}
+
+
+
+////////////////////////////////////////////////////////////////
 /// @method YtaRobot::Test
 ///
 /// This method is run when entering test mode.
@@ -486,9 +587,24 @@ void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
 ////////////////////////////////////////////////////////////////
 void YtaRobot::Test()
 {
-    while (true)
-    {
-    }
+    DisplayMessage("Test mode called.");
+}
+
+
+
+////////////////////////////////////////////////////////////////
+/// @method YtaRobot::Disabled
+///
+/// This method is run when the robot is disabled.
+///
+////////////////////////////////////////////////////////////////
+void YtaRobot::Disabled()
+{
+    DisplayMessage("Disabled called.");
+    
+    // All motors off
+    m_pLeftDriveMotor->Set(OFF);
+    m_pRightDriveMotor->Set(OFF);
 }
 
 

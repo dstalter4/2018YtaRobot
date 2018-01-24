@@ -6,7 +6,7 @@
 /// A class designed to work with a group of CAN Talon speed controllers working
 /// in tandem.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   03-JAN-2015 Created from 2014.
 /// - dts   17-JAN-2015 Ported to CAN Talons.
 /// - dts   06-FEB-2015 Support for follow and inverse control.
@@ -24,7 +24,7 @@
 // <none>
 
 // C INCLUDES
-#include "ctre/Phoenix.h"
+#include "ctre/Phoenix.h"               // For CTRE libraries
 
 // C++ INCLUDES
 // (none)
@@ -41,7 +41,7 @@ class TalonMotorGroup
 {
 public:
     
-    enum GroupControlMode
+    enum MotorGroupControlMode
     {
         FOLLOW,
         INDEPENDENT,
@@ -51,7 +51,7 @@ public:
     };
 
     // Constructor
-    TalonMotorGroup( int numInstances, int firstCANId, GroupControlMode controlMode, FeedbackDevice sensor = FeedbackDevice::None );
+    TalonMotorGroup( int numMotors, int firstCANId, MotorGroupControlMode controlMode, FeedbackDevice sensor = FeedbackDevice::None );
     
     // Function to set the speed of each motor in the group
     void Set( float value );
@@ -71,7 +71,7 @@ private:
     // Member variables
     int m_NumMotors;                                    // Number of motors in the group
     TalonSRX *  m_pMotors[MAX_NUMBER_OF_MOTORS];        // The motor objects
-    GroupControlMode m_ControlMode;                     // Keep track of the configuration of this Talon group
+    MotorGroupControlMode m_ControlMode;                // Keep track of the configuration of this Talon group
     FeedbackDevice m_Sensor;                            // Keep track of the sensor attached to the Talon
     
     // Prevent default construction/deletion/copy/assignment

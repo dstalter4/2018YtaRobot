@@ -5,7 +5,7 @@
 /// @details
 /// Implementation of autonomous encoder based routines.
 ///
-/// @if Edit History
+/// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
 /// @endif
 ///
