@@ -72,7 +72,8 @@ private:
     
     double m_ThrottleValue;
     
-    static constexpr float X_AXIS_SENSITIVITY_SCALING = 0.75F;
+    static constexpr float X_AXIS_SENSITIVITY_SCALING = 0.30F;
+    static constexpr float Y_AXIS_SENSITIVITY_SCALING = 0.60F;
     
     // Prevent copying/assignment
     LogitechGamepad(const LogitechGamepad&) = delete;

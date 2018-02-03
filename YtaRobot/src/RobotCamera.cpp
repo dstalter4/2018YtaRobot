@@ -21,70 +21,81 @@
 // C++ INCLUDES
 #include "RobotCamera.hpp"          // For class declaration
 
+// STATIC MEMBER DATA
+cs::UsbCamera           RobotCamera::m_Cam0;
+cs::UsbCamera           RobotCamera::m_Cam1;
+cs::CvSink              RobotCamera::m_Cam0Sink;
+cs::CvSink              RobotCamera::m_Cam1Sink;
+cs::CvSource            RobotCamera::m_CameraOutput;
+cv::Mat                 RobotCamera::m_SourceMat;
+cv::Mat                 RobotCamera::m_ResizeOutputMat;
+cv::Mat                 RobotCamera::m_HsvThresholdOutputMat; 
+cv::Mat                 RobotCamera::m_ErodeOutputMat;
+cv::Mat                 RobotCamera::m_MaskOutputMat;
+cv::Mat                 RobotCamera::m_OutputMat;
+cv::Mat *               RobotCamera::m_pDashboardMat;
+RobotCamera::CameraType RobotCamera::m_Camera;
+const char *            RobotCamera::CAMERA_0_NAME = "USB Camera 0";
+const char *            RobotCamera::CAMERA_1_NAME = "USB Camera 1";
+const char *            RobotCamera::CAMERA_OUTPUT_NAME = "Camera Output";
+
 
 
 ////////////////////////////////////////////////////////////////
-/// @method RobotCamera::RobotCamera
+/// @method RobotCamera::VisionThread
 ///
-/// Constructor.
+/// This method contains the workflow of the main vision thread.
 ///
 ////////////////////////////////////////////////////////////////
-RobotCamera::RobotCamera(Camera camera)
-: m_Camera(camera)
-, m_pAxisCamera()
-, m_pUsbCamera()
-, m_ImaqSession()
-, m_BackImaqSession()
-, m_pFrame(imaqCreateImage(IMAQ_IMAGE_RGB, 0))
-, m_pBinaryFrame(imaqCreateImage(IMAQ_IMAGE_U8, 0))
-, m_TargetReport()
-, m_IteratorParicleReport()
-, m_ParticleReports()
-, m_ReflectRedRange()
-, m_ReflectGreenRange()
-, m_ReflectBlueRange()
-, m_HeartBeat(0)
-, m_NumMaskedParticles(0)
-, m_NumFilteredParticles(0)
-, m_CameraDistance(0.0F)
-, m_GroundDistance(0.0F)
-, m_BoundingArea(0.0F)
-, m_ShapeAreaPercent(0.0F)
-, m_TrapezoidPercent(0.0F)
-, m_bUsbCameraPresent(false)
-, m_bBackUsbCameraPresent(false)
-, m_bTargetInRange(false)
+void RobotCamera::VisionThread()
 {
-    // Reset and prepare the Axis camera
-    //m_pAxisCamera.reset(new AxisCamera(AXIS_CAMERA_IP_STRING));
+    // Set the default selected camera
+    m_Camera = FRONT_USB;
     
-    //m_pUsbCamera = new USBCamera(USB_CAMERA_STRING, true);
-    //m_pUsbCamera->OpenCamera();
-    //m_pUsbCamera->SetFPS(CAMERA_FPS);
-    //m_pUsbCamera->SetSize(CAMERA_WIDTH, CAMERA_HEIGHT);
-    //m_pUsbCamera->UpdateSettings();
-    //m_pUsbCamera->StartCapture();
-    //m_bUsbCameraPresent = true;
+    // Start image capture
+    m_Cam0 = CameraServer::GetInstance()->StartAutomaticCapture(CAMERA_0_DEV_NUM);
+    m_Cam1 = CameraServer::GetInstance()->StartAutomaticCapture(CAMERA_1_DEV_NUM);
     
-    // Make sure there is actually a USB camera present at the specified port
-    if (IMAQdxOpenCamera(USB_CAMERA_STRING, IMAQdxCameraControlModeController, &m_ImaqSession) == IMAQdxErrorSuccess)
+    // Set image resolution
+    m_Cam0.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
+    m_Cam1.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
+    
+    // Connect the sinks and sources
+    m_Cam0Sink = CameraServer::GetInstance()->GetVideo(m_Cam0);
+    m_Cam1Sink = CameraServer::GetInstance()->GetVideo(m_Cam1);
+    m_CameraOutput = CameraServer::GetInstance()->PutVideo(CAMERA_OUTPUT_NAME, CAMERA_X_RES, CAMERA_Y_RES);
+    
+    // Set the default image to display
+    m_pDashboardMat = &m_SourceMat;
+    
+    while (true)
     {
-        IMAQdxConfigureGrab(m_ImaqSession);
-        IMAQdxStartAcquisition(m_ImaqSession);
-        m_bUsbCameraPresent = true;
+        // First, acquire an image from the currently selected camera
+        int grabFrameResult = 0;
+        if (m_Camera == FRONT_USB)
+        {
+            grabFrameResult = m_Cam0Sink.GrabFrame(m_SourceMat);
+        }
+        else if (m_Camera == BACK_USB)
+        {
+            grabFrameResult = m_Cam1Sink.GrabFrame(m_SourceMat);
+        }
+        else
+        {
+        }
+        
+        // Make sure it was successful
+        if (grabFrameResult == 0)
+        {
+            continue;
+        }
+        
+        // Filter the image
+        FilterImage();
+        
+        // Display the image to the dashboard
+        m_CameraOutput.PutFrame(*m_pDashboardMat);
     }
-    
-    if (IMAQdxOpenCamera(BACK_USB_CAMERA_STRING, IMAQdxCameraControlModeController, &m_BackImaqSession) == IMAQdxErrorSuccess)
-    {
-        IMAQdxConfigureGrab(m_BackImaqSession);
-        IMAQdxStartAcquisition(m_BackImaqSession);
-        m_bBackUsbCameraPresent = true;
-    }
-    
-    // Initialize the ranges, they aren't constant in case the Smart Dashboard sets them
-    m_ReflectRedRange = {RED_REFLECT_MIN, RED_REFLECT_MAX};
-    m_ReflectGreenRange = {GREEN_REFLECT_MIN, GREEN_REFLECT_MAX};
-    m_ReflectBlueRange = {BLUE_REFLECT_MIN, BLUE_REFLECT_MAX};
 }
 
 
@@ -97,12 +108,7 @@ RobotCamera::RobotCamera(Camera camera)
 ////////////////////////////////////////////////////////////////
 void RobotCamera::UpdateSmartDashboard()
 {
-    SmartDashboard::PutNumber("Reflect red min",    m_ReflectRedRange.minValue);
-    SmartDashboard::PutNumber("Reflect red max",    m_ReflectRedRange.maxValue);
-    SmartDashboard::PutNumber("Reflect green min",  m_ReflectGreenRange.minValue);
-    SmartDashboard::PutNumber("Reflect green max",  m_ReflectGreenRange.maxValue);
-    SmartDashboard::PutNumber("Reflect blue min",   m_ReflectBlueRange.minValue);
-    SmartDashboard::PutNumber("Reflect blue max",   m_ReflectBlueRange.maxValue);
+    /*
     SmartDashboard::PutNumber("Masked particles",   m_NumMaskedParticles);
     SmartDashboard::PutNumber("Filtered particles", m_NumFilteredParticles);
     SmartDashboard::PutNumber("HeartBeat",          m_HeartBeat++);
@@ -117,13 +123,40 @@ void RobotCamera::UpdateSmartDashboard()
     SmartDashboard::PutNumber("Trapezoid score",    m_TrapezoidPercent);
     SmartDashboard::PutNumber("Camera distance",    m_CameraDistance);
     SmartDashboard::PutNumber("Ground distance",    m_GroundDistance);
+    */
+}
 
-    m_ReflectRedRange.minValue      = SmartDashboard::GetNumber("Reflect red min",      m_ReflectRedRange.minValue);
-    m_ReflectRedRange.maxValue      = SmartDashboard::GetNumber("Reflect red max",      m_ReflectRedRange.maxValue);
-    m_ReflectGreenRange.minValue    = SmartDashboard::GetNumber("Reflect green min",    m_ReflectGreenRange.minValue);
-    m_ReflectGreenRange.maxValue    = SmartDashboard::GetNumber("Reflect green max",    m_ReflectGreenRange.maxValue);
-    m_ReflectBlueRange.minValue     = SmartDashboard::GetNumber("Reflect blue min",     m_ReflectBlueRange.minValue);
-    m_ReflectBlueRange.maxValue     = SmartDashboard::GetNumber("Reflect blue max",     m_ReflectBlueRange.maxValue);
+
+
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::ToggleCameraProcessedImage
+///
+/// Updates which stage of the image processing is sent to the
+/// dashboard.
+///
+////////////////////////////////////////////////////////////////
+void RobotCamera::ToggleCameraProcessedImage()
+{
+    if (m_pDashboardMat == &m_SourceMat)
+    {
+        // Move on to HSV threshold output
+        m_pDashboardMat = &m_HsvThresholdOutputMat;
+    }
+    else if (m_pDashboardMat == &m_HsvThresholdOutputMat)
+    {
+        // Move on to eroded output
+        m_pDashboardMat = &m_ErodeOutputMat;
+    }
+    else if (m_pDashboardMat == &m_ErodeOutputMat)
+    {
+        // Back to the start
+        m_pDashboardMat = &m_SourceMat;
+    }
+    else
+    {
+        // Default to just the typical source mat
+        m_pDashboardMat = &m_SourceMat;
+    }
 }
 
 
@@ -137,9 +170,10 @@ void RobotCamera::UpdateSmartDashboard()
 ////////////////////////////////////////////////////////////////
 bool RobotCamera::ProcessTarget(bool bDoFullProcessing)
 {
+    return false;
+    /*
     GetAndDisplayImage();
     
-    // And if m_bUsbCameraPresent?
     if (bDoFullProcessing)
     {
         FilterImage();
@@ -153,6 +187,7 @@ bool RobotCamera::ProcessTarget(bool bDoFullProcessing)
     }
 
     return m_bTargetInRange;
+    */
 
     // Shape drawing coordinates: Top, Left, Height, Width
     //int L = std::trunc(m_TargetReport.BoundingRectLeft);
@@ -168,40 +203,6 @@ bool RobotCamera::ProcessTarget(bool bDoFullProcessing)
     //AthenaCameraServer::GetInstance()->SetImage(pDrawableImage);
 }
 
-
-
-////////////////////////////////////////////////////////////////
-/// @method RobotCamera::GetAndDisplayImage
-///
-/// Gets an image from the currently selected camera and sends
-/// it to the driver station.
-///
-////////////////////////////////////////////////////////////////
-void RobotCamera::GetAndDisplayImage()
-{
-    // Grab an image from the camera
-    if (m_Camera == AXIS)
-    {
-        static_cast<void>(m_pAxisCamera->GetImage(m_pFrame));
-    }
-    else if (m_Camera == USB)
-    {
-        static_cast<void>(IMAQdxGrab(m_ImaqSession, m_pFrame, true, NULL));
-        //m_pUsbCamera->GetImage(m_pFrame);
-    }
-    else if (m_Camera == BACK_USB)
-    {
-        static_cast<void>(IMAQdxGrab(m_ImaqSession, m_pFrame, true, NULL));
-    }
-    else
-    {
-    }
-    
-    // Send the image to the driver station
-    //CameraServer::GetInstance()->SetImage(m_pFrame);
-    CameraServer::GetInstance()->SetImage(m_pFrame);
-}
-
     
     
 ////////////////////////////////////////////////////////////////
@@ -213,20 +214,28 @@ void RobotCamera::GetAndDisplayImage()
 ////////////////////////////////////////////////////////////////
 void RobotCamera::FilterImage()
 {
-    // Threshold the image looking for the illuminated green reflective tape
-    static_cast<void>(imaqColorThreshold(m_pBinaryFrame, m_pFrame, IMAQ_REPLACE_VALUE, IMAQ_HSV, &m_ReflectRedRange, &m_ReflectGreenRange, &m_ReflectBlueRange));
-
-    // Send particle count to dashboard
-    static_cast<void>(imaqCountParticles(m_pBinaryFrame, 1, &m_NumMaskedParticles));
+    // min/max values
+    double hsvThresholdHue[]        = {0.0, 119.39393939393939};
+    double hsvThresholdSaturation[] = {0.0, 173.43434343434345};
+    double hsvThresholdValue[]      = {0.0, 141.23737373737373};
     
-    //CameraServer::GetInstance()->SetImage(m_pFrame);
-    //AthenaCameraServer::GetInstance()->SetImage(m_pFrame);
-
-    // Filter out small particles
-    static_cast<void>(imaqParticleFilter4(m_pBinaryFrame, m_pBinaryFrame, &FILTER_CRITERIA, 1, &FILTER_OPTIONS, NULL, NULL));
-
-    // Send particle count after filtering to dashboard
-    static_cast<void>(imaqCountParticles(m_pBinaryFrame, 1, &m_NumFilteredParticles));
+    // Convert to HSV and filter
+    cv::cvtColor(m_SourceMat, m_HsvThresholdOutputMat, cv::COLOR_BGR2HSV);
+    cv::inRange(m_HsvThresholdOutputMat,
+                cv::Scalar(hsvThresholdHue[0], hsvThresholdSaturation[0], hsvThresholdValue[0]),
+                cv::Scalar(hsvThresholdHue[1], hsvThresholdSaturation[1], hsvThresholdValue[1]),
+                m_HsvThresholdOutputMat);
+    
+    // Erode image
+    // @param src input image
+    // @param dst output image
+    // @param kernel structuring element used for erosion
+    // @param anchor position of the anchor within the element; default value (-1, -1) means that the anchor is at the element center.
+    // @param iterations number of times erosion is applied.
+    // @param borderType pixel extrapolation method, see cv::BorderTypes
+    // @param borderValue border value in case of a constant border
+	cv::Mat cvErodeKernel;
+	cv::erode(m_HsvThresholdOutputMat, m_ErodeOutputMat, cvErodeKernel, cv::Point(-1, -1), 1, cv::BORDER_CONSTANT, cv::Scalar(-1));
 }
 
 
@@ -241,6 +250,7 @@ void RobotCamera::FilterImage()
 ////////////////////////////////////////////////////////////////
 void RobotCamera::GenerateParticleReport()
 {
+    /*
     if (m_NumFilteredParticles > 0)
     {
         double currentMaxArea = 0;
@@ -270,6 +280,7 @@ void RobotCamera::GenerateParticleReport()
 
     // Concerns about using too much of the heap and frequent dynamic garbage collection?
     m_ParticleReports.erase(m_ParticleReports.begin(), m_ParticleReports.end());
+    */
 }
 
 
@@ -285,6 +296,7 @@ void RobotCamera::GenerateParticleReport()
 ////////////////////////////////////////////////////////////////
 void RobotCamera::CalculateTargetParticleValues()
 {
+    /*
     int32_t xRes = 0;
     int32_t yRes = 0;
     imaqGetImageSize(m_pBinaryFrame, &xRes, &yRes);
@@ -317,4 +329,5 @@ void RobotCamera::CalculateTargetParticleValues()
     {
         m_bTargetInRange = false;
     }
+    */
 }
