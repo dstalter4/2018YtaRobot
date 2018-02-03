@@ -29,10 +29,6 @@
 
 // C INCLUDES
 #include "WPILib.h"                     // for FRC library
-#include "CameraServer.h"               // This group of includes is for camera support
-#include <opencv2/imgproc/imgproc.hpp>
-#include <opencv2/core/core.hpp>
-#include <opencv2/core/types.hpp>
 
 // C++ INCLUDES
 #include "TalonMotorGroup.hpp"          // for Talon group motor control
@@ -122,8 +118,8 @@ private:
     // STRUCTS
     struct TriggerChangeValues
     {
-        bool bCurrentValue;
-        bool bOldValue;
+        bool m_bCurrentValue;
+        bool m_bOldValue;
     };
     
     struct I2cData
@@ -160,10 +156,10 @@ private:
     inline float GetThrottleControl(LogitechGamepad * pGamepad);
 
     // Grabs a value from a sonar sensor individually
-    // inline float UpdateSonarSensor(Ultrasonic * pSensor);
+    inline float GetSonarSensorValue(Ultrasonic * pSensor);
    
     // Get a reading from the gyro sensor
-    // inline float GetGyroAngle(AnalogGyro * pSensor);
+    inline float GetGyroAngle(AnalogGyro * pSensor);
     
     // Convert a distance in inches to encoder turns
     int GetEncoderRotationsFromInches(int inches, float diameter, bool bUseQuadEncoding = true);
@@ -230,34 +226,34 @@ private:
     // MEMBER VARIABLES
     
     // User Controls
-    DriverStation                   *m_pDriverStation;                      // Driver station object for getting selections
-    Joystick                        *m_pDriveJoystick;                      // Drive control option 1
-    Joystick                        *m_pControlJoystick;                    // Robot functional control option 1
-    LogitechGamepad                 *m_pLogitechDriveGamepad;               // Drive control option 2
-    LogitechGamepad                 *m_pLogitechControlGamepad;             // Robot functional control option 2
+    DriverStation *                 m_pDriverStation;                       // Driver station object for getting selections
+    Joystick *                      m_pDriveJoystick;                       // Drive control option 1
+    Joystick *                      m_pControlJoystick;                     // Robot functional control option 1
+    LogitechGamepad *               m_pLogitechDriveGamepad;                // Drive control option 2
+    LogitechGamepad *               m_pLogitechControlGamepad;              // Robot functional control option 2
     
     // Motors
-    TalonMotorGroup                 *m_pLeftDriveMotor;                     // Left drive motor control
-    TalonMotorGroup                 *m_pRightDriveMotor;                    // Right drive motor control
-    TalonMotorGroup                 *m_pFrontSideDriveMotor;                // Front side drive motor control
-    TalonMotorGroup                 *m_pRearSideDriveMotor;                 // Rear side drive motor control
+    TalonMotorGroup *               m_pLeftDriveMotor;                      // Left drive motor control
+    TalonMotorGroup *               m_pRightDriveMotor;                     // Right drive motor control
+    TalonMotorGroup *               m_pFrontSideDriveMotor;                 // Front side drive motor control
+    TalonMotorGroup *               m_pRearSideDriveMotor;                  // Rear side drive motor control
     
     // Spike Relays
-    Relay                           *m_pLedRelay;                           // Controls whether or not the LEDs are lit up
+    Relay *                         m_pLedRelay;                            // Controls whether or not the LEDs are lit up
     
     // Digital I/O
-    DigitalInput                    *m_pAutonomous1Switch;                  // Switch to select autonomous routine 1
-    DigitalInput                    *m_pAutonomous2Switch;                  // Switch to select autonomous routine 2
-    DigitalInput                    *m_pAutonomous3Switch;                  // Switch to select autonomous routine 3
+    DigitalInput *                  m_pAutonomous1Switch;                   // Switch to select autonomous routine 1
+    DigitalInput *                  m_pAutonomous2Switch;                   // Switch to select autonomous routine 2
+    DigitalInput *                  m_pAutonomous3Switch;                   // Switch to select autonomous routine 3
     
     // Analog I/O
-    AnalogGyro                      *m_pGyro;
+    AnalogGyro *                    m_pGyro;
     
     // Solenoids
-    // Note: no compressor related objects required,
+    // Note: No compressor related objects required,
     // instantiating a solenoid gets that for us.
-    Solenoid                        *m_pTestSingleSolenoid;
-    DoubleSolenoid                  *m_pTestDoubleSolenoid;
+    Solenoid *                      m_pTestSingleSolenoid;
+    DoubleSolenoid *                m_pTestDoubleSolenoid;
     
     // Servos
     // (none)
@@ -266,24 +262,21 @@ private:
     // (none)
     
     // Timers
-    Timer                           *m_pAutonomousTimer;                    // Time things during autonomous
-    Timer                           *m_pInchingDriveTimer;                  // Keep track of an inching drive operation
-    Timer                           *m_pI2cTimer;                           // Keep track of how often to do I2C operations
-    Timer                           *m_pCameraRunTimer;                     // Keep track of how often to do camera intense code runs
-    Timer                           *m_pSafetyTimer;                        // Fail safe in case critical operations don't complete
+    Timer *                         m_pAutonomousTimer;                     // Time things during autonomous
+    Timer *                         m_pInchingDriveTimer;                   // Keep track of an inching drive operation
+    Timer *                         m_pI2cTimer;                            // Keep track of how often to do I2C operations
+    Timer *                         m_pCameraRunTimer;                      // Keep track of how often to do camera intense code runs
+    Timer *                         m_pSafetyTimer;                         // Fail safe in case critical operations don't complete
     
     // Accelerometer
-    BuiltInAccelerometer            *m_pAccelerometer;                      // Built in roborio accelerometer
+    BuiltInAccelerometer *          m_pAccelerometer;                       // Built in roborio accelerometer
 
     // Camera
-    //cs::UsbCamera                   m_Cam0;
-    //cs::UsbCamera                   m_Cam1;
-    //cs::VideoSink                   m_CameraServer;
-    //cs::CvSink                      *m_pSink0;
-    //cs::CvSink                      *m_pSink1;
-    //cv::Mat                         m_Mat;
-    static const int                CAMERA_X_RES                            = 320;
-    static const int                CAMERA_Y_RES                            = 240;
+    // Note: Only need to have a thread here and tie it to
+    // the RobotCamera class, which handles everything else.
+    std::thread                     m_CameraThread;
+    TriggerChangeValues *           m_pToggleCameraTrigger;
+    TriggerChangeValues *           m_pToggleCameraImageTrigger;
 
     // Serial port configuration
     static const int                SERIAL_PORT_BUFFER_SIZE_BYTES           = 1024;
@@ -295,12 +288,12 @@ private:
     char                            m_SerialPortBuffer[SERIAL_PORT_BUFFER_SIZE_BYTES];
 
     // On board serial port
-    SerialPort                      *m_pSerialPort;
+    SerialPort *                    m_pSerialPort;
     
     // I2C configuration
     static const int                I2C_DEVICE_ADDRESS                      = 4U;
     I2cData                         m_I2cData;
-    I2C                             *m_pI2cPort;
+    I2C *                           m_pI2cPort;
 
     // Misc
     Alliance                        m_AllianceColor;                        // Color reported by driver station during a match
@@ -318,8 +311,13 @@ private:
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
 
     // Driver buttons
-    static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 7 : 5;
-    static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 8 : 6;
+    static const int                SINGLE_SOLENOID_TOGGLE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  3 :  1;
+    static const int                DOUBLE_SOLENOID_TOGGLE_ON_BUTTON        = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  5 :  3;
+    static const int                DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON       = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  6 :  4;
+    static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  5;
+    static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  6;
+    static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  7;
+    static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  8;
     static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = 13;
     static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = 14;
     
@@ -327,8 +325,9 @@ private:
     static const int                ESTOP_BUTTON                            = 14;
 
     // CAN Signals
-    static const int                LEFT_MOTORS_CAN_START_ID                = 1;
-    static const int                RIGHT_MOTORS_CAN_START_ID               = 3;
+    // 2018: Left/Right CAN ID reversed
+    static const int                RIGHT_MOTORS_CAN_START_ID               = 1;
+    static const int                LEFT_MOTORS_CAN_START_ID                = 3;
     static const int                FRONT_SIDE_DRIVE_MOTOR_CAN_ID           = 5;
     static const int                REAR_SIDE_DRIVE_MOTOR_CAN_ID            = 6;
 
@@ -373,6 +372,7 @@ private:
     static constexpr float          CONTROL_THROTTLE_VALUE_BASE             =  0.35F;
     static constexpr float          DRIVE_THROTTLE_VALUE_RANGE              =  0.65F;
     static constexpr float          DRIVE_THROTTLE_VALUE_BASE               =  0.35F;
+    static constexpr float          SIDE_DRIVE_SPEED                        =  0.60F;
     static constexpr float          DRIVE_WHEEL_DIAMETER_INCHES             =  4.00F;
     static constexpr float          DRIVE_MOTOR_UPPER_LIMIT                 =  1.00F;
     static constexpr float          DRIVE_MOTOR_LOWER_LIMIT                 = -1.00F;
@@ -464,12 +464,14 @@ inline float YtaRobot::GetThrottleControl(LogitechGamepad * pGamepad)
 /// This method is used to get a value from an analog gyro sensor.
 ///
 ////////////////////////////////////////////////////////////////
-/*
 inline float YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
 {
+    return 0.0F;
+    
+    /*
     return pSensor->GetAngle();
+    */
 }
-*/
 
 
 
@@ -482,15 +484,17 @@ inline float YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
 /// sensors that may need to get readings.
 ///
 ////////////////////////////////////////////////////////////////
-/*
-inline float YtaRobot::UpdateSonarSensor(Ultrasonic * pSensor)
+inline float YtaRobot::GetSonarSensorValue(Ultrasonic * pSensor)
 {
+    return 0.0F;
+    
+    /*
     pSensor->SetEnabled(true);
     float sensorValue = pSensor->GetRangeInches();
     pSensor->SetEnabled(false);
     return sensorValue;
+    */
 }
-*/
 
 
 
@@ -578,15 +582,15 @@ inline bool YtaRobot::DetectTriggerChange(TriggerChangeValues * pTriggerVals)
     // Only report a change if the current value is different than the old value
     // Also make sure the transition is to being pressed since we are detecting
     // presses and not releases
-    if ( (pTriggerVals->bCurrentValue != pTriggerVals->bOldValue) && pTriggerVals->bCurrentValue )
+    if ( (pTriggerVals->m_bCurrentValue != pTriggerVals->m_bOldValue) && pTriggerVals->m_bCurrentValue )
     {
         // Update the old value, return the button was pressed
-        pTriggerVals->bOldValue = pTriggerVals->bCurrentValue;
+        pTriggerVals->m_bOldValue = pTriggerVals->m_bCurrentValue;
         return true;
     }
     
     // Otherwise update the old value
-    pTriggerVals->bOldValue = pTriggerVals->bCurrentValue;
+    pTriggerVals->m_bOldValue = pTriggerVals->m_bCurrentValue;
     return false;
 }
 

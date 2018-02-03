@@ -78,7 +78,7 @@ double LogitechGamepad::GetY(JoystickHand hand) const
     
     // Hopefully only one trigger is being pushed, but in
     // case both are being pressed, the value will be combined.
-    return leftTriggerValue + rightTriggerValue;
+    return (leftTriggerValue + rightTriggerValue) * Y_AXIS_SENSITIVITY_SCALING;
 }
 
 

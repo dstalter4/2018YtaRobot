@@ -19,14 +19,15 @@
 ////////////////////////////////////////////////////////////////////////////////
 
 // SYSTEM INCLUDES
-#include <cstddef>          // for nullptr
-#include <cstring>          // for memset
+#include <cstddef>                      // for nullptr
+#include <cstring>                      // for memset
 
 // C INCLUDES
 // (none)
 
 // C++ INCLUDES
-#include "YtaRobot.hpp"    // For class declaration (and other headers)
+#include "YtaRobot.hpp"                 // for class declaration (and other headers)
+#include "RobotCamera.hpp"              // for interacting with cameras
 
 // Do not use static initialization!  There is a bug in the
 // WPI libraries that will cause an exception during object
@@ -61,13 +62,10 @@ YtaRobot::YtaRobot()
 , m_pI2cTimer                   (new Timer())
 , m_pCameraRunTimer             (new Timer())
 , m_pSafetyTimer                (new Timer())
-, m_pAccelerometer              (new BuiltInAccelerometer())
-//, m_Cam0                        (CameraServer::GetInstance()->StartAutomaticCapture(0U))
-//, m_Cam1                        (CameraServer::GetInstance()->StartAutomaticCapture(1U))
-//, m_CameraServer                (CameraServer::GetInstance()->GetServer())
-//, m_pSink0                      (new cs::CvSink("cam0sink"))
-//, m_pSink1                      (new cs::CvSink("cam1sink"))
-//, m_Mat                         ()
+, m_pAccelerometer              (new BuiltInAccelerometer)
+, m_CameraThread                (RobotCamera::VisionThread)
+, m_pToggleCameraTrigger        (new TriggerChangeValues())
+, m_pToggleCameraImageTrigger   (new TriggerChangeValues())
 , m_SerialPortBuffer            ()
 , m_pSerialPort                 (new SerialPort(SERIAL_PORT_BAUD_RATE, SerialPort::kMXP, SERIAL_PORT_NUM_DATA_BITS, SerialPort::kParity_None, SerialPort::kStopBits_One))
 , m_I2cData                     ()
@@ -89,21 +87,8 @@ YtaRobot::YtaRobot()
     // Reset the serial port
     m_pSerialPort->Reset();
     
-    CameraServer::GetInstance()->StartAutomaticCapture();
-    
-    // Set camera quality
-    //m_Cam0.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
-    //m_Cam1.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
-    
-    //m_Cam0.SetVideoMode(cs::VideoMode::kMJPEG, 160, 120, 10);
-    //m_Cam1.SetVideoMode(cs::VideoMode::kMJPEG, 160, 120, 10);
-    
-    //m_pSink0->SetSource(m_Cam0);
-    //m_pSink0->SetEnabled(true);
-    //m_pSink1->SetSource(m_Cam1);
-    //m_pSink1->SetEnabled(true);
-    //m_CameraServer.SetSource(m_Cam0);
-    //m_pCameraRunTimer->Start();
+    // Spawn the vision thread
+    m_CameraThread.detach();
 }
 
 
@@ -135,6 +120,10 @@ void YtaRobot::InitialStateSetup()
     // Start I2C timer
     m_pI2cTimer->Reset();
     m_pI2cTimer->Start();
+    
+    // Start the camera timer
+    m_pCameraRunTimer->Reset();
+    m_pCameraRunTimer->Start();
     
     // Just in case constructor was called before these were set (likely the case)
     m_AllianceColor = m_pDriverStation->GetAlliance();
@@ -175,7 +164,7 @@ void YtaRobot::OperatorControl()
         
         //LedSequence();
 
-        //SolenoidSequence();
+        SolenoidSequence();
 
         //SonarSensorSequence();
         
@@ -185,7 +174,7 @@ void YtaRobot::OperatorControl()
         
         //I2cSequence();
         
-        //CameraSequence();
+        CameraSequence();
         
         
         
@@ -235,6 +224,27 @@ void YtaRobot::LedSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SolenoidSequence()
 {
+    if (m_pLogitechDriveGamepad->GetRawButton(SINGLE_SOLENOID_TOGGLE_BUTTON))
+    {
+        m_pTestSingleSolenoid->Set(true);
+    }
+    else
+    {
+        m_pTestSingleSolenoid->Set(false);
+    }
+    
+    if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_ON_BUTTON))
+    {
+        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kForward);
+    }
+    else if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON))
+    {
+        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kReverse);
+    }
+    else
+    {
+        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kOff);
+    }
 }
 
 
@@ -264,10 +274,6 @@ void YtaRobot::SonarSensorSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::GyroSequence()
 {
-    if (DEBUG_PRINTS)
-    {
-        SmartDashboard::PutNumber("Gyro: ", m_pGyro->GetAngle());
-    }
 }
 
 
@@ -348,7 +354,7 @@ void YtaRobot::I2cSequence()
 ///
 ////////////////////////////////////////////////////////////////
 void YtaRobot::CameraSequence()
-{    
+{
     // Do the camera processing
     //bool bDoFullVisionProcessing = false;
     
@@ -358,6 +364,19 @@ void YtaRobot::CameraSequence()
     {
         //bDoFullVisionProcessing = true;
         m_pCameraRunTimer->Reset();
+    }
+    
+    m_pToggleCameraTrigger->m_bCurrentValue = m_pLogitechDriveGamepad->GetRawButton(CAMERA_TOGGLE_BUTTON);
+    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pLogitechDriveGamepad->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
+    
+    if (DetectTriggerChange(m_pToggleCameraTrigger))
+    {
+        RobotCamera::ToggleCamera();
+    }
+    
+    if (DetectTriggerChange(m_pToggleCameraImageTrigger))
+    {
+        RobotCamera::ToggleCameraProcessedImage();
     }
 }
 
@@ -411,10 +430,10 @@ void YtaRobot::DriveControlSequence()
     }
 
     // Filter motor speeds
-    //float leftSpeed = Limit((xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    //float rightSpeed = Limit((xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    float leftSpeed = Limit((-xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    float rightSpeed = Limit((-xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    float leftSpeed = Limit((xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    float rightSpeed = Limit((xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    //float leftSpeed = Limit((-xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    //float rightSpeed = Limit((-xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
     
     // Set motor speed
     m_pLeftDriveMotor->Set(leftSpeed);
@@ -478,17 +497,13 @@ void YtaRobot::SideDriveSequence()
     
     if (bSideDriveLeft)
     {
-        m_pTestSingleSolenoid->Set(false);
-        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kForward);
-        m_pFrontSideDriveMotor->Set(ON);
-        m_pRearSideDriveMotor->Set(ON);
+        m_pFrontSideDriveMotor->Set(-ON * SIDE_DRIVE_SPEED);
+        m_pRearSideDriveMotor->Set(ON * SIDE_DRIVE_SPEED);
     }
     else if (bSideDriveRight)
     {
-        m_pTestSingleSolenoid->Set(true);
-        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kReverse);
-        m_pFrontSideDriveMotor->Set(-ON);
-        m_pRearSideDriveMotor->Set(-ON);
+        m_pFrontSideDriveMotor->Set(ON * SIDE_DRIVE_SPEED);
+        m_pRearSideDriveMotor->Set(-ON * SIDE_DRIVE_SPEED);
     }
     else
     {
@@ -509,8 +524,8 @@ void YtaRobot::SideDriveSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
 {
-    // 2017 LEFT FORWARD DRIVE IS NEGATIVE
-    // 2017 RIGHT FORWARD DRIVE IS POSITIVE
+    // 2018 LEFT FORWARD DRIVE IS NEGATIVE
+    // 2018 RIGHT FORWARD DRIVE IS POSITIVE
     float leftSpeed = speed;
     float rightSpeed = speed;
     
