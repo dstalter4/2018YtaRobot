@@ -12,6 +12,7 @@
 /// - dts   06-FEB-2015 Support for follow and inverse control.
 /// - dts   08-JAN-2017 Ported to use TalonSRX class.
 /// - dts   06-JAN-2018 Adopted to CTRE Phoenix.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -156,7 +157,7 @@ int TalonMotorGroup::GetEncoderValue()
 /// Method to set the speed of each motor in the group.
 ///
 ////////////////////////////////////////////////////////////////
-void TalonMotorGroup::Set( float value )
+void TalonMotorGroup::Set( double value )
 {
     // Check what kind of group this is.  Most
     // CAN Talons will be set to follow, but some
@@ -217,7 +218,7 @@ void TalonMotorGroup::Set( float value )
 /// the speed is different between motors in the group.
 ///
 ////////////////////////////////////////////////////////////////
-void TalonMotorGroup::SetWithOffset( float group1Value, float group2Value )
+void TalonMotorGroup::SetWithOffset( double group1Value, double group2Value )
 {
     // Check what kind of group this is.  This Talon
     // group is not uniform, so different values need

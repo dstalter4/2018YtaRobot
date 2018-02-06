@@ -12,6 +12,7 @@
 /// - dts   06-FEB-2015 Support for follow and inverse control.
 /// - dts   08-JAN-2017 Ported to use TalonSRX class.
 /// - dts   06-JAN-2018 Adopted to CTRE Phoenix.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -54,8 +55,8 @@ public:
     TalonMotorGroup( int numMotors, int firstCANId, MotorGroupControlMode controlMode, FeedbackDevice sensor = FeedbackDevice::None );
     
     // Function to set the speed of each motor in the group
-    void Set( float value );
-    void SetWithOffset( float group1Value, float group2Value );
+    void Set( double value );
+    void SetWithOffset( double group1Value, double group2Value );
     
     // Return the value of the sensor connected to the Talon
     int GetEncoderValue();

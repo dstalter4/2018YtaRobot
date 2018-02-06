@@ -7,6 +7,7 @@
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -104,8 +105,8 @@ bool YtaRobot::AutonomousSonarDrive(SonarDriveDirection driveDirection, SonarDri
     }
     
     // Start with defaults of off and no turning
-    float leftDriveSpeed = OFF;
-    float rightDriveSpeed = OFF;    
+    double leftDriveSpeed = OFF;
+    double rightDriveSpeed = OFF;    
     bool bLeftTurn = false;
     bool bRightTurn = false;
     bool bCanOverrideTurn = true;
@@ -223,13 +224,13 @@ bool YtaRobot::AutonomousSonarDrive(SonarDriveDirection driveDirection, SonarDri
         {
             if (driveDirection == SONAR_FORWARD)
             {
-                m_pLeftDriveMotor->Set(leftDriveSpeed);
-                m_pRightDriveMotor->Set(rightDriveSpeed);
+                m_pLeftDriveMotors->Set(leftDriveSpeed);
+                m_pRightDriveMotors->Set(rightDriveSpeed);
             }
             else if (driveDirection == SONAR_REVERSE)
             {
-                m_pLeftDriveMotor->Set(-leftDriveSpeed);
-                m_pRightDriveMotor->Set(-rightDriveSpeed);
+                m_pLeftDriveMotors->Set(-leftDriveSpeed);
+                m_pRightDriveMotors->Set(-rightDriveSpeed);
             }
             else
             {

@@ -7,6 +7,7 @@
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   12-MAR-2017 Created.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -32,7 +33,7 @@
 /// the 4x (4096) quadrature encoders.
 ///
 ////////////////////////////////////////////////////////////////
-int YtaRobot::GetEncoderRotationsFromInches(int inches, float diameter, bool bUseQuadEncoding)
+int YtaRobot::GetEncoderRotationsFromInches(int inches, double diameter, bool bUseQuadEncoding)
 {
     // c = PI*d
     // (PI*d)/4096 is ratio of one encoder turn to a distance of
@@ -47,7 +48,7 @@ int YtaRobot::GetEncoderRotationsFromInches(int inches, float diameter, bool bUs
     // encoding is desired, the result needs to be divided by four.
     // If 4" wheels are in use, 3911.39188 turns = 12"
     volatile int numerator = QUADRATURE_ENCODING_ROTATIONS * inches;
-    volatile float denominator = M_PI * diameter;
+    volatile double denominator = M_PI * diameter;
     volatile int result = numerator / denominator;
     //int result = (QUADRATURE_ENCODING_ROTATIONS * inches) / (M_PI * diameter);
     
@@ -68,7 +69,7 @@ int YtaRobot::GetEncoderRotationsFromInches(int inches, float diameter, bool bUs
 /// encoders.
 ///
 ////////////////////////////////////////////////////////////////
-void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirection direction)
+void YtaRobot::AutonomousEncoderDrive(double speed, double distance, EncoderDirection direction)
 {
     // 2017 LEFT FORWARD DRIVE IS NEGATIVE
     // 2017 RIGHT FORWARD DRIVE IS POSITIVE
@@ -89,8 +90,8 @@ void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirect
     // 144" | (36864 / PI) = 11734.17564
     
     // New drive operation, tare encoders
-    m_pLeftDriveMotor->TareEncoder();
-    m_pRightDriveMotor->TareEncoder();
+    m_pLeftDriveMotors->TareEncoder();
+    m_pRightDriveMotors->TareEncoder();
     
     // Start the safety timer        
     m_pSafetyTimer->Reset();
@@ -108,10 +109,10 @@ void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirect
         }
         
         // Set speeds, adjust below if needed
-        float leftDriveSpeed = speed;
-        float rightDriveSpeed = speed;
-        float leftDriveScale = 1.0F;
-        float rightDriveScale = 1.0F;
+        double leftDriveSpeed = speed;
+        double rightDriveSpeed = speed;
+        double leftDriveScale = 1.0;
+        double rightDriveScale = 1.0;
         
         // Get encoder values to always be positive, based on direction.
         // Also scale the drive motors for direction.
@@ -119,17 +120,17 @@ void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirect
         {
             case FORWARD:
             {
-                leftEncVal = -(m_pLeftDriveMotor->GetEncoderValue());
-                rightEncVal = m_pRightDriveMotor->GetEncoderValue();
-                leftDriveScale = -1.0F;
+                leftEncVal = -(m_pLeftDriveMotors->GetEncoderValue());
+                rightEncVal = m_pRightDriveMotors->GetEncoderValue();
+                leftDriveScale = -1.0;
                 
                 break;
             }
             case REVERSE:
             {
-                leftEncVal = m_pLeftDriveMotor->GetEncoderValue();
-                rightEncVal = -(m_pRightDriveMotor->GetEncoderValue());
-                rightDriveScale = -1.0F;
+                leftEncVal = m_pLeftDriveMotors->GetEncoderValue();
+                rightEncVal = -(m_pRightDriveMotors->GetEncoderValue());
+                rightDriveScale = -1.0;
                 
                 break;
             }
@@ -156,8 +157,8 @@ void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirect
         }
         
         // Motors on
-        m_pLeftDriveMotor->Set(leftDriveSpeed * leftDriveScale);
-        m_pRightDriveMotor->Set(rightDriveSpeed * rightDriveScale);
+        m_pLeftDriveMotors->Set(leftDriveSpeed * leftDriveScale);
+        m_pRightDriveMotors->Set(rightDriveSpeed * rightDriveScale);
         
         // Send stats back to the smart dashboard
         if (DEBUG_PRINTS)
@@ -172,8 +173,8 @@ void YtaRobot::AutonomousEncoderDrive(float speed, float distance, EncoderDirect
            && (m_pSafetyTimer->Get() <= YtaRobotAutonomous::ENCODER_DRIVE_MAX_DELAY_S) );
     
     // Motors back off    
-    m_pLeftDriveMotor->Set(OFF);
-    m_pRightDriveMotor->Set(OFF);
+    m_pLeftDriveMotors->Set(OFF);
+    m_pRightDriveMotors->Set(OFF);
     
     AutonomousBackDrive(direction);
     

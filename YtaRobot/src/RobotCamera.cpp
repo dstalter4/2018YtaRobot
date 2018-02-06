@@ -197,8 +197,8 @@ bool RobotCamera::ProcessTarget(bool bDoFullProcessing)
     //int W = std::trunc(R - L);
     //int H = std::trunc(B - T);
     //m_pAxisCamera->GetImage(m_pImageFrame);
-    //imaqDrawShapeOnImage(frame, frame, { 10, 10, 100, 100 }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 0.0f);
-    //imaqDrawShapeOnImage(m_pImageFrame, m_pImageFrame, { T, L, H, W }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 1.0f);
+    //imaqDrawShapeOnImage(frame, frame, { 10, 10, 100, 100 }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 0.0);
+    //imaqDrawShapeOnImage(m_pImageFrame, m_pImageFrame, { T, L, H, W }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 1.0);
     //CameraServer::GetInstance()->SetImage(pDrawableImage);
     //AthenaCameraServer::GetInstance()->SetImage(pDrawableImage);
 }
@@ -307,8 +307,8 @@ void RobotCamera::CalculateTargetParticleValues()
     // d = (TLengthIn * xRes) / (2 * TLengthPix * tan(FOVAng)), negated
     //double distance = -1 * (20 * xRes) / (2 * (targetReport.BoundingRectRight - targetReport.BoundingRectLeft) * tan(18));//tan(21.5778173));//tan(37.4));
     m_CameraDistance = (TARGET_SIZE * xRes) /
-                       (2.0F * (m_TargetReport.m_BoundingRectRight - m_TargetReport.m_BoundingRectLeft)
-                             * tan(CALIBRATED_CAMERA_ANGLE*RADIANS_TO_DEGREES));
+                       (2.0 * (m_TargetReport.m_BoundingRectRight - m_TargetReport.m_BoundingRectLeft)
+                            * tan(CALIBRATED_CAMERA_ANGLE*RADIANS_TO_DEGREES));
 
     // ground_distance = sqrt((camera_reported_distance^2) - (84^2))
     // sin(camera_angle) = (height_from_ground) / (camera_reported_distance);
