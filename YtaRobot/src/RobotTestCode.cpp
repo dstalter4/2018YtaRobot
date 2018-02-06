@@ -33,8 +33,8 @@
 void YtaRobot::AutonomousTestCode()
 {
     // Motors off
-    m_pLeftDriveMotor->Set(OFF);
-    m_pRightDriveMotor->Set(OFF);
+    m_pLeftDriveMotors->Set(OFF);
+    m_pRightDriveMotors->Set(OFF);
 }
 
 
@@ -55,7 +55,7 @@ void YtaRobot::OperatorTestCode()
 
     // Sample code for testing the detect trigger change code
     TriggerChangeValues testValues;
-    testValues.bCurrentValue = m_pControlJoystick->GetRawButton(10);
+    testValues.m_bCurrentValue = m_pControlJoystick->GetRawButton(10);
     if ( DetectTriggerChange(&testValues) )
     {
         printf("Trigger change detected!\n");
@@ -152,6 +152,6 @@ void YtaRobot::MotorTest()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::TankDrive()
 {
-    m_pLeftDriveMotor->Set(-m_pDriveJoystick->GetY());
-    m_pRightDriveMotor->Set(m_pControlJoystick->GetY());
+    m_pLeftDriveMotors->Set(-m_pDriveJoystick->GetY());
+    m_pRightDriveMotors->Set(m_pControlJoystick->GetY());
 }

@@ -7,6 +7,7 @@
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   19-JAN-2018 Created.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -72,8 +73,8 @@ private:
     
     double m_ThrottleValue;
     
-    static constexpr float X_AXIS_SENSITIVITY_SCALING = 0.30F;
-    static constexpr float Y_AXIS_SENSITIVITY_SCALING = 0.60F;
+    static constexpr double X_AXIS_SENSITIVITY_SCALING = 0.30;
+    static constexpr double Y_AXIS_SENSITIVITY_SCALING = 0.60;
     
     // Prevent copying/assignment
     LogitechGamepad(const LogitechGamepad&) = delete;

@@ -7,6 +7,7 @@
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   19-JAN-2018 Created.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -34,7 +35,7 @@
 ////////////////////////////////////////////////////////////////
 LogitechGamepad::LogitechGamepad(int port)
 : GenericHID(port)
-, m_ThrottleValue(0.0F)
+, m_ThrottleValue(0.0)
 {
 }
 
@@ -95,5 +96,5 @@ double LogitechGamepad::GetY(JoystickHand hand) const
 double LogitechGamepad::GetThrottle() const
 {
     // Not implemented yet
-    return 1.0F;
+    return 1.0;
 }

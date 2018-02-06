@@ -15,6 +15,7 @@
 /// - dts   06-JAN-2018 Ported from 2017 and adopted to CTRE Phoenix.
 /// - dts   20-JAN-2018 Add support for Logitech Gamepad controllers.
 /// - dts   23-JAN-2018 Add support for printing to the RioLog.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -140,10 +141,10 @@ private:
     inline void DisplayMessage(const char * pMessage);
     
     // Ensures a number is between the upper and lower bounds
-    inline float Limit( float num, float upper, float lower );
+    inline double Limit( double num, double upper, double lower );
     
     // Trims a number to be in between the upper and lower bounds
-    inline float Trim( float num, float upper, float lower );
+    inline double Trim( double num, double upper, double lower );
 
     // Detect that a button has been pressed (rather than released)
     inline bool DetectTriggerChange(TriggerChangeValues * pTriggerVals);
@@ -152,23 +153,23 @@ private:
     inline void CheckForDriveSwap();
     
     // Get a throttle control value from a joystick
-    inline float GetThrottleControl(Joystick * pJoystick);
-    inline float GetThrottleControl(LogitechGamepad * pGamepad);
+    inline double GetThrottleControl(Joystick * pJoystick);
+    inline double GetThrottleControl(LogitechGamepad * pGamepad);
 
     // Grabs a value from a sonar sensor individually
-    inline float GetSonarSensorValue(Ultrasonic * pSensor);
+    inline double GetSonarSensorValue(Ultrasonic * pSensor);
    
     // Get a reading from the gyro sensor
-    inline float GetGyroAngle(AnalogGyro * pSensor);
+    inline double GetGyroAngle(AnalogGyro * pSensor);
     
     // Convert a distance in inches to encoder turns
-    int GetEncoderRotationsFromInches(int inches, float diameter, bool bUseQuadEncoding = true);
+    int GetEncoderRotationsFromInches(int inches, double diameter, bool bUseQuadEncoding = true);
 
     // Autonomous wait for something to complete delay routine
-    inline void AutonomousDelay(float time);
+    inline void AutonomousDelay(double time);
 
     // Autonomous drive for a specified time
-    inline void AutonomousDriveSequence(float speed, float time);
+    inline void AutonomousDriveSequence(double speed, double time);
     
     // Autonomous routines to back drive the motors to abruptly stop
     inline void AutonomousBackDrive(EncoderDirection currentRobotDirection);
@@ -181,9 +182,9 @@ private:
     void AutonomousCommon();
     void AutonomousCommonRed();
     void AutonomousCommonBlue();
-    bool AutonomousGyroLeftTurn(float destAngle, float turnSpeed);
-    bool AutonomousGyroRightTurn(float destAngle, float turnSpeed);
-    void AutonomousEncoderDrive(float speed, float distance, EncoderDirection direction);
+    bool AutonomousGyroLeftTurn(double destAngle, double turnSpeed);
+    bool AutonomousGyroRightTurn(double destAngle, double turnSpeed);
+    void AutonomousEncoderDrive(double speed, double distance, EncoderDirection direction);
     bool AutonomousSonarDrive(SonarDriveDirection driveDirection, SonarDriveState driveState, uint32_t destLateralDist, uint32_t destSideDist);
 
     // Routine to put things in a known state
@@ -194,7 +195,7 @@ private:
     void SideDriveSequence();
     
     // Functions to automate slightly moving the robot
-    void DirectionalInch(float speed, EncoderDirection direction);
+    void DirectionalInch(double speed, EncoderDirection direction);
 
     // Main sequence for LED control
     void LedSequence();
@@ -233,10 +234,12 @@ private:
     LogitechGamepad *               m_pLogitechControlGamepad;              // Robot functional control option 2
     
     // Motors
-    TalonMotorGroup *               m_pLeftDriveMotor;                      // Left drive motor control
-    TalonMotorGroup *               m_pRightDriveMotor;                     // Right drive motor control
-    TalonMotorGroup *               m_pFrontSideDriveMotor;                 // Front side drive motor control
-    TalonMotorGroup *               m_pRearSideDriveMotor;                  // Rear side drive motor control
+    TalonMotorGroup *               m_pLeftDriveMotors;                     // Left drive motor control
+    TalonMotorGroup *               m_pRightDriveMotors;                    // Right drive motor control
+    TalonMotorGroup *               m_pSideDriveMotors;                     // Side drive motor control
+    //TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
+    //TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
+    //TalonMotorGroup *               m_pShooterMotors;                       // Shooting of the cube
     
     // Spike Relays
     Relay *                         m_pLedRelay;                            // Controls whether or not the LEDs are lit up
@@ -252,8 +255,11 @@ private:
     // Solenoids
     // Note: No compressor related objects required,
     // instantiating a solenoid gets that for us.
-    Solenoid *                      m_pTestSingleSolenoid;
-    DoubleSolenoid *                m_pTestDoubleSolenoid;
+    Solenoid *                      m_pSideDriveSolenoid;                   // Controls side drive up/down
+    Solenoid *                      m_pHangRaisePoleSolenoid;               // Lifts/lowers the pole from the robot body
+    Solenoid *                      m_pHangExtendPoleSolenoid;              // Extends to pole from the raised position
+    DoubleSolenoid *                m_pIntakeArmsHorizontalSolenoid;        // Controls horizontal movement of the intake arms
+    DoubleSolenoid *                m_pIntakeArmsVerticalSolenoid;          // Controls vertical movement of the intake arms
     
     // Servos
     // (none)
@@ -325,11 +331,12 @@ private:
     static const int                ESTOP_BUTTON                            = 14;
 
     // CAN Signals
-    // 2018: Left/Right CAN ID reversed
-    static const int                RIGHT_MOTORS_CAN_START_ID               = 1;
-    static const int                LEFT_MOTORS_CAN_START_ID                = 3;
-    static const int                FRONT_SIDE_DRIVE_MOTOR_CAN_ID           = 5;
-    static const int                REAR_SIDE_DRIVE_MOTOR_CAN_ID            = 6;
+    static const int                LEFT_MOTORS_CAN_START_ID                = 1;
+    static const int                RIGHT_MOTORS_CAN_START_ID               = 3;
+    static const int                SIDE_DRIVE_MOTORS_CAN_START_ID          = 5;
+    static const int                INTAKE_MOTORS_CAN_START_ID              = 7;
+    static const int                CONVEYOR_MOTORS_CAN_START_ID            = 9;
+    static const int                SHOOTER_MOTORS_CAN_START_ID             = 11;
 
     // PWM Signals
     // (none)
@@ -346,9 +353,13 @@ private:
     static const int                ANALOG_GYRO_CHANNEL                     = 0;
     
     // Solenoid Signals
-    static const int                SINGLE_SOLENOID_TEST_CHANNEL            = 0;
-    static const int                DOUBLE_SOLENOID_TEST_CHANNEL_1          = 1;
-    static const int                DOUBLE_SOLENOID_TEST_CHANNEL_2          = 2;
+    static const int                SIDE_DRIVE_SOLENOID_CHANNEL             = 0;
+    static const int                HANG_RAISE_POLE_SOLENOID_CHANNEL        = 1;
+    static const int                HANG_EXTEND_POLE_SOLENOID_CHANNEL       = 2;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL  = 4;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL  = 5;
+    static const int                INTAKE_VERTICAL_SOLENOID_FWD_CHANNEL    = 6;
+    static const int                INTAKE_VERTICAL_SOLENOID_REV_CHANNEL    = 7;
     
     // Misc
     static const int                OFF                                     = 0;
@@ -356,6 +367,10 @@ private:
     static const int                SINGLE_MOTOR                            = 1;
     static const int                NUMBER_OF_LEFT_DRIVE_MOTORS             = 2;
     static const int                NUMBER_OF_RIGHT_DRIVE_MOTORS            = 2;
+    static const int                NUMBER_OF_SIDE_DRIVE_MOTORS             = 2;
+    static const int                NUMBER_OF_INTAKE_MOTORS                 = 2;
+    static const int                NUMBER_OF_CONVEYOR_MOTORS               = 2;
+    static const int                NUMBER_OF_SHOOTER_MOTORS                = 2;
     static const int                SCALE_TO_PERCENT                        = 100;
     static const int                QUADRATURE_ENCODING_ROTATIONS           = 4096;
     static const int                GAME_DATA_NEAR_SWITCH_INDEX             = 0;
@@ -366,23 +381,23 @@ private:
     static const char               NULL_CHARACTER                          = '\0';
     static const bool               DEBUG_PRINTS                            = true;
     
-    static constexpr float          JOYSTICK_TRIM_UPPER_LIMIT               =  0.10F;
-    static constexpr float          JOYSTICK_TRIM_LOWER_LIMIT               = -0.10F;
-    static constexpr float          CONTROL_THROTTLE_VALUE_RANGE            =  0.65F;
-    static constexpr float          CONTROL_THROTTLE_VALUE_BASE             =  0.35F;
-    static constexpr float          DRIVE_THROTTLE_VALUE_RANGE              =  0.65F;
-    static constexpr float          DRIVE_THROTTLE_VALUE_BASE               =  0.35F;
-    static constexpr float          SIDE_DRIVE_SPEED                        =  0.60F;
-    static constexpr float          DRIVE_WHEEL_DIAMETER_INCHES             =  4.00F;
-    static constexpr float          DRIVE_MOTOR_UPPER_LIMIT                 =  1.00F;
-    static constexpr float          DRIVE_MOTOR_LOWER_LIMIT                 = -1.00F;
-    static constexpr float          MOTOR_BACK_DRIVE_SPEED                  =  0.05F;
-    static constexpr float          INCHING_DRIVE_SPEED                     =  0.25F;
-    static constexpr float          INCHING_DRIVE_DELAY_S                   =  0.10F;
+    static constexpr double         JOYSTICK_TRIM_UPPER_LIMIT               =  0.10;
+    static constexpr double         JOYSTICK_TRIM_LOWER_LIMIT               = -0.10;
+    static constexpr double         CONTROL_THROTTLE_VALUE_RANGE            =  0.65;
+    static constexpr double         CONTROL_THROTTLE_VALUE_BASE             =  0.35;
+    static constexpr double         DRIVE_THROTTLE_VALUE_RANGE              =  0.65;
+    static constexpr double         DRIVE_THROTTLE_VALUE_BASE               =  0.35;
+    static constexpr double         SIDE_DRIVE_SPEED                        =  0.60;
+    static constexpr double         DRIVE_WHEEL_DIAMETER_INCHES             =  4.00;
+    static constexpr double         DRIVE_MOTOR_UPPER_LIMIT                 =  1.00;
+    static constexpr double         DRIVE_MOTOR_LOWER_LIMIT                 = -1.00;
+    static constexpr double         MOTOR_BACK_DRIVE_SPEED                  =  0.05;
+    static constexpr double         INCHING_DRIVE_SPEED                     =  0.25;
+    static constexpr double         INCHING_DRIVE_DELAY_S                   =  0.10;
     
-    static constexpr float          CAMERA_RUN_INTERVAL_S                   =  1.00F;
-    static constexpr float          I2C_RUN_INTERVAL_S                      =  0.10F;
-    static constexpr float          SAFETY_TIMER_MAX_VALUE                  =  5.00F;
+    static constexpr double         CAMERA_RUN_INTERVAL_S                   =  1.00;
+    static constexpr double         I2C_RUN_INTERVAL_S                      =  0.10;
+    static constexpr double         SAFETY_TIMER_MAX_VALUE                  =  5.00;
     
     static const int                SONAR_LED_WARN_DIST_INCHES              = 3;
     static const uint32_t           SONAR_DRIVE_STATE_SIDE_MASK             = 0x0F;
@@ -423,7 +438,7 @@ inline void YtaRobot::CheckForDriveSwap()
 /// Returns a throttle value based on input from the joystick.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::GetThrottleControl(Joystick * pJoystick)
+inline double YtaRobot::GetThrottleControl(Joystick * pJoystick)
 {
     // Get throttle control
     // The z axis goes from -1 to 1, so it needs to be normalized.
@@ -433,11 +448,11 @@ inline float YtaRobot::GetThrottleControl(Joystick * pJoystick)
     // that can be reached.
     if (pJoystick == m_pDriveJoystick)
     {
-        return ((pJoystick->GetThrottle() - 1.0F) / -2.0F) * DRIVE_THROTTLE_VALUE_RANGE + DRIVE_THROTTLE_VALUE_BASE;
+        return ((pJoystick->GetThrottle() - 1.0) / -2.0) * DRIVE_THROTTLE_VALUE_RANGE + DRIVE_THROTTLE_VALUE_BASE;
     }
     else
     {
-        return ((pJoystick->GetThrottle() - 1.0F) / -2.0F) * CONTROL_THROTTLE_VALUE_RANGE + CONTROL_THROTTLE_VALUE_BASE;
+        return ((pJoystick->GetThrottle() - 1.0) / -2.0) * CONTROL_THROTTLE_VALUE_RANGE + CONTROL_THROTTLE_VALUE_BASE;
     }
 }
 
@@ -450,7 +465,7 @@ inline float YtaRobot::GetThrottleControl(Joystick * pJoystick)
 /// Gamepad controller.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::GetThrottleControl(LogitechGamepad * pGamepad)
+inline double YtaRobot::GetThrottleControl(LogitechGamepad * pGamepad)
 {
     // Gamepad throttle already comes back between 0 and +1, so no need to normalize.
     return (pGamepad->GetThrottle() * DRIVE_THROTTLE_VALUE_RANGE) + DRIVE_THROTTLE_VALUE_BASE;
@@ -464,9 +479,9 @@ inline float YtaRobot::GetThrottleControl(LogitechGamepad * pGamepad)
 /// This method is used to get a value from an analog gyro sensor.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
+inline double YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
 {
-    return 0.0F;
+    return 0.0;
     
     /*
     return pSensor->GetAngle();
@@ -484,13 +499,13 @@ inline float YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
 /// sensors that may need to get readings.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::GetSonarSensorValue(Ultrasonic * pSensor)
+inline double YtaRobot::GetSonarSensorValue(Ultrasonic * pSensor)
 {
-    return 0.0F;
+    return 0.0;
     
     /*
     pSensor->SetEnabled(true);
-    float sensorValue = pSensor->GetRangeInches();
+    double sensorValue = pSensor->GetRangeInches();
     pSensor->SetEnabled(false);
     return sensorValue;
     */
@@ -523,7 +538,7 @@ inline void YtaRobot::DisplayMessage(const char * pMessage)
 /// devices.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::Limit( float num, float upper, float lower )
+inline double YtaRobot::Limit( double num, double upper, double lower )
 {
     if ( num > upper )
     {
@@ -547,7 +562,7 @@ inline float YtaRobot::Limit( float num, float upper, float lower )
 /// device and not just noise/jitter.
 ///
 ////////////////////////////////////////////////////////////////
-inline float YtaRobot::Trim( float num, float upper, float lower )
+inline double YtaRobot::Trim( double num, double upper, double lower )
 {
     if ( (num < upper) && (num > lower) )
     {

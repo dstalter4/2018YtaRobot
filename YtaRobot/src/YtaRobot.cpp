@@ -13,6 +13,7 @@
 /// - dts   08-JAN-2017 Ported from 2016.
 /// - dts   06-JAN-2018 Ported from 2017 and adopted to CTRE Phoenix.
 /// - dts   20-JAN-2018 Add support for Logitech Gamepad controllers.
+/// - dts   05-FEB-2018 Convert float -> double.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -41,39 +42,44 @@
 ///
 ////////////////////////////////////////////////////////////////
 YtaRobot::YtaRobot()
-: m_pDriverStation              (&DriverStation::GetInstance())
-, m_pDriveJoystick              (new Joystick(DRIVE_JOYSTICK_PORT))
-, m_pControlJoystick            (new Joystick(CONTROL_JOYSTICK_PORT))
-, m_pLogitechDriveGamepad       (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
-, m_pLogitechControlGamepad     (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
-, m_pLeftDriveMotor             (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
-, m_pRightDriveMotor            (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
-, m_pFrontSideDriveMotor        (new TalonMotorGroup(SINGLE_MOTOR, FRONT_SIDE_DRIVE_MOTOR_CAN_ID, MotorGroupControlMode::INDEPENDENT, FeedbackDevice::None))
-, m_pRearSideDriveMotor         (new TalonMotorGroup(SINGLE_MOTOR, REAR_SIDE_DRIVE_MOTOR_CAN_ID, MotorGroupControlMode::INDEPENDENT, FeedbackDevice::None))
-, m_pLedRelay                   (new Relay(LED_RELAY_ID))
-, m_pAutonomous1Switch          (new DigitalInput(AUTONOMOUS_1_SWITCH))
-, m_pAutonomous2Switch          (new DigitalInput(AUTONOMOUS_2_SWITCH))
-, m_pAutonomous3Switch          (new DigitalInput(AUTONOMOUS_3_SWITCH))
-, m_pGyro                       (new AnalogGyro(ANALOG_GYRO_CHANNEL))
-, m_pTestSingleSolenoid         (new Solenoid(SINGLE_SOLENOID_TEST_CHANNEL))
-, m_pTestDoubleSolenoid         (new DoubleSolenoid(DOUBLE_SOLENOID_TEST_CHANNEL_1, DOUBLE_SOLENOID_TEST_CHANNEL_2))
-, m_pAutonomousTimer            (new Timer())
-, m_pInchingDriveTimer          (new Timer())
-, m_pI2cTimer                   (new Timer())
-, m_pCameraRunTimer             (new Timer())
-, m_pSafetyTimer                (new Timer())
-, m_pAccelerometer              (new BuiltInAccelerometer)
-, m_CameraThread                (RobotCamera::VisionThread)
-, m_pToggleCameraTrigger        (new TriggerChangeValues())
-, m_pToggleCameraImageTrigger   (new TriggerChangeValues())
-, m_SerialPortBuffer            ()
-, m_pSerialPort                 (new SerialPort(SERIAL_PORT_BAUD_RATE, SerialPort::kMXP, SERIAL_PORT_NUM_DATA_BITS, SerialPort::kParity_None, SerialPort::kStopBits_One))
-, m_I2cData                     ()
-, m_pI2cPort                    (new I2C(I2C::kMXP, I2C_DEVICE_ADDRESS))
-, m_AllianceColor               (m_pDriverStation->GetAlliance())
-, m_GameData                    ()
-, m_bDriveSwap                  (false)
-, m_bLed                        (false)
+: m_pDriverStation                  (&DriverStation::GetInstance())
+, m_pDriveJoystick                  (new Joystick(DRIVE_JOYSTICK_PORT))
+, m_pControlJoystick                (new Joystick(CONTROL_JOYSTICK_PORT))
+, m_pLogitechDriveGamepad           (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
+, m_pLogitechControlGamepad         (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
+, m_pLeftDriveMotors                (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
+, m_pRightDriveMotors               (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
+, m_pSideDriveMotors                (new TalonMotorGroup(NUMBER_OF_SIDE_DRIVE_MOTORS, SIDE_DRIVE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+//, m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+//, m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+//, m_pShooterMotors                  (new TalonMotorGroup(NUMBER_OF_SHOOTER_MOTORS, SHOOTER_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+, m_pLedRelay                       (new Relay(LED_RELAY_ID))
+, m_pAutonomous1Switch              (new DigitalInput(AUTONOMOUS_1_SWITCH))
+, m_pAutonomous2Switch              (new DigitalInput(AUTONOMOUS_2_SWITCH))
+, m_pAutonomous3Switch              (new DigitalInput(AUTONOMOUS_3_SWITCH))
+, m_pGyro                           (new AnalogGyro(ANALOG_GYRO_CHANNEL))
+, m_pSideDriveSolenoid              (new Solenoid(SIDE_DRIVE_SOLENOID_CHANNEL))
+, m_pHangRaisePoleSolenoid          (new Solenoid(HANG_RAISE_POLE_SOLENOID_CHANNEL))
+, m_pHangExtendPoleSolenoid         (new Solenoid(HANG_EXTEND_POLE_SOLENOID_CHANNEL))
+, m_pIntakeArmsHorizontalSolenoid   (new DoubleSolenoid(INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL, INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL))
+, m_pIntakeArmsVerticalSolenoid     (new DoubleSolenoid(INTAKE_VERTICAL_SOLENOID_FWD_CHANNEL, INTAKE_VERTICAL_SOLENOID_REV_CHANNEL))
+, m_pAutonomousTimer                (new Timer())
+, m_pInchingDriveTimer              (new Timer())
+, m_pI2cTimer                       (new Timer())
+, m_pCameraRunTimer                 (new Timer())
+, m_pSafetyTimer                    (new Timer())
+, m_pAccelerometer                  (new BuiltInAccelerometer)
+, m_CameraThread                    (RobotCamera::VisionThread)
+, m_pToggleCameraTrigger            (new TriggerChangeValues())
+, m_pToggleCameraImageTrigger       (new TriggerChangeValues())
+, m_SerialPortBuffer                ()
+, m_pSerialPort                     (new SerialPort(SERIAL_PORT_BAUD_RATE, SerialPort::kMXP, SERIAL_PORT_NUM_DATA_BITS, SerialPort::kParity_None, SerialPort::kStopBits_One))
+, m_I2cData                         ()
+, m_pI2cPort                        (new I2C(I2C::kMXP, I2C_DEVICE_ADDRESS))
+, m_AllianceColor                   (m_pDriverStation->GetAlliance())
+, m_GameData                        ()
+, m_bDriveSwap                      (false)
+, m_bLed                            (false)
 {
     DisplayMessage("Robot constructor.");
     
@@ -104,12 +110,22 @@ YtaRobot::YtaRobot()
 void YtaRobot::InitialStateSetup()
 {
     // Start with motors off
-    m_pLeftDriveMotor->Set(OFF);
-    m_pRightDriveMotor->Set(OFF);
+    m_pLeftDriveMotors->Set(OFF);
+    m_pRightDriveMotors->Set(OFF);
+    //m_pIntakeMotors->Set(OFF);
+    //m_pConveyorMotors->Set(OFF);
+    //m_pShooterMotors->Set(OFF);
     
     // Tare encoders
-    m_pLeftDriveMotor->TareEncoder();
-    m_pRightDriveMotor->TareEncoder();
+    m_pLeftDriveMotors->TareEncoder();
+    m_pRightDriveMotors->TareEncoder();
+    
+    // Solenoids to off states
+    m_pSideDriveSolenoid->Set(false);
+    m_pHangRaisePoleSolenoid->Set(false);
+    m_pHangExtendPoleSolenoid->Set(false);
+    m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
+    m_pIntakeArmsVerticalSolenoid->Set(DoubleSolenoid::kOff);
     
     // Stop/clear any timers, just in case
     m_pInchingDriveTimer->Stop();
@@ -148,11 +164,11 @@ void YtaRobot::OperatorControl()
     InitialStateSetup();
     
     // Teleop will use coast mode
-    //m_pLeftDriveMotor->SetCoastMode();
-    //m_pRightDriveMotor->SetCoastMode();
+    //m_pLeftDriveMotors->SetCoastMode();
+    //m_pRightDriveMotors->SetCoastMode();
     // Teleop will use brake mode
-    m_pLeftDriveMotor->SetBrakeMode();
-    m_pRightDriveMotor->SetBrakeMode();
+    m_pLeftDriveMotors->SetBrakeMode();
+    m_pRightDriveMotors->SetBrakeMode();
     
     // Main tele op loop
     while ( m_pDriverStation->IsOperatorControl() && m_pDriverStation->IsEnabled() )
@@ -226,24 +242,24 @@ void YtaRobot::SolenoidSequence()
 {
     if (m_pLogitechDriveGamepad->GetRawButton(SINGLE_SOLENOID_TOGGLE_BUTTON))
     {
-        m_pTestSingleSolenoid->Set(true);
+        m_pSideDriveSolenoid->Set(true);
     }
     else
     {
-        m_pTestSingleSolenoid->Set(false);
+        m_pSideDriveSolenoid->Set(false);
     }
     
     if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_ON_BUTTON))
     {
-        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kForward);
+        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kForward);
     }
     else if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON))
     {
-        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kReverse);
+        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
     else
     {
-        m_pTestDoubleSolenoid->Set(DoubleSolenoid::kOff);
+        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
     }
 }
 
@@ -394,9 +410,9 @@ void YtaRobot::CameraSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DriveControlSequence()
 {
-    float throttleControl = 0.0F;
-    float xAxisDrive = 0.0F;
-    float yAxisDrive = 0.0F;
+    double throttleControl = 0.0;
+    double xAxisDrive = 0.0;
+    double yAxisDrive = 0.0;
     if (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME)
     {
         // Computes what the maximum drive speed could be
@@ -430,14 +446,14 @@ void YtaRobot::DriveControlSequence()
     }
 
     // Filter motor speeds
-    float leftSpeed = Limit((xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    float rightSpeed = Limit((xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    //float leftSpeed = Limit((-xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
-    //float rightSpeed = Limit((-xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    double leftSpeed = Limit((xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    double rightSpeed = Limit((xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    //double leftSpeed = Limit((-xAxisDrive + yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
+    //double rightSpeed = Limit((-xAxisDrive - yAxisDrive), DRIVE_MOTOR_UPPER_LIMIT, DRIVE_MOTOR_LOWER_LIMIT);
     
     // Set motor speed
-    m_pLeftDriveMotor->Set(leftSpeed);
-    m_pRightDriveMotor->Set(rightSpeed);
+    m_pLeftDriveMotors->Set(leftSpeed);
+    m_pRightDriveMotors->Set(rightSpeed);
     
     /*
     // First check for inching controls
@@ -460,8 +476,8 @@ void YtaRobot::DriveControlSequence()
     else
     {
         // Set motor speed
-        m_pLeftDriveMotor->Set(leftSpeed);
-        m_pRightDriveMotor->Set(rightSpeed);
+        m_pLeftDriveMotors->Set(leftSpeed);
+        m_pRightDriveMotors->Set(rightSpeed);
     }
     */
 }
@@ -497,18 +513,15 @@ void YtaRobot::SideDriveSequence()
     
     if (bSideDriveLeft)
     {
-        m_pFrontSideDriveMotor->Set(-ON * SIDE_DRIVE_SPEED);
-        m_pRearSideDriveMotor->Set(ON * SIDE_DRIVE_SPEED);
+        m_pSideDriveMotors->Set(-SIDE_DRIVE_SPEED);
     }
     else if (bSideDriveRight)
     {
-        m_pFrontSideDriveMotor->Set(ON * SIDE_DRIVE_SPEED);
-        m_pRearSideDriveMotor->Set(-ON * SIDE_DRIVE_SPEED);
+        m_pSideDriveMotors->Set(SIDE_DRIVE_SPEED);
     }
     else
     {
-        m_pFrontSideDriveMotor->Set(OFF);
-        m_pRearSideDriveMotor->Set(OFF);
+        m_pSideDriveMotors->Set(OFF);
     }
 }
 
@@ -522,24 +535,24 @@ void YtaRobot::SideDriveSequence()
 /// robot a slight amount in that direction.
 ///
 ////////////////////////////////////////////////////////////////
-void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
+void YtaRobot::DirectionalInch(double speed, EncoderDirection direction)
 {
     // 2018 LEFT FORWARD DRIVE IS NEGATIVE
     // 2018 RIGHT FORWARD DRIVE IS POSITIVE
-    float leftSpeed = speed;
-    float rightSpeed = speed;
+    double leftSpeed = speed;
+    double rightSpeed = speed;
     
     // Negate appropriate motor speeds, based on direction
     switch (direction)
     {
         case FORWARD:
         {
-            leftSpeed *= -1.0F;
+            leftSpeed *= -1.0;
             break;
         }
         case REVERSE:
         {
-            rightSpeed *= -1.0F;
+            rightSpeed *= -1.0;
             break;
         }
         case LEFT:
@@ -548,8 +561,8 @@ void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
         }
         case RIGHT:
         {
-            leftSpeed *= -1.0F;
-            rightSpeed *= -1.0F;
+            leftSpeed *= -1.0;
+            rightSpeed *= -1.0;
             break;
         }
         default:
@@ -563,16 +576,16 @@ void YtaRobot::DirectionalInch(float speed, EncoderDirection direction)
     m_pInchingDriveTimer->Start();
     
     // Motors on
-    m_pLeftDriveMotor->Set(leftSpeed);
-    m_pRightDriveMotor->Set(rightSpeed);
+    m_pLeftDriveMotors->Set(leftSpeed);
+    m_pRightDriveMotors->Set(rightSpeed);
     
     while (m_pInchingDriveTimer->Get() < INCHING_DRIVE_DELAY_S)
     {
     }
     
     // Motors back off
-    m_pLeftDriveMotor->Set(OFF);
-    m_pRightDriveMotor->Set(OFF);
+    m_pLeftDriveMotors->Set(OFF);
+    m_pRightDriveMotors->Set(OFF);
     
     // Stop the timer
     m_pInchingDriveTimer->Stop();
@@ -618,8 +631,8 @@ void YtaRobot::Disabled()
     DisplayMessage("Disabled called.");
     
     // All motors off
-    m_pLeftDriveMotor->Set(OFF);
-    m_pRightDriveMotor->Set(OFF);
+    m_pLeftDriveMotors->Set(OFF);
+    m_pRightDriveMotors->Set(OFF);
 }
 
 

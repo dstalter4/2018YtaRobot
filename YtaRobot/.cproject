@@ -68,7 +68,7 @@
 					</folderInfo>
 					<fileInfo id="cdt.managedbuild.config.gnu.cross.exe.debug.1104744751.1725212268" name="RobotCamera.hpp" rcbsApplicability="disable" resourcePath="src/RobotCamera.hpp" toolsToInvoke=""/>
 					<sourceEntries>
-						<entry excluding="src/RobotCamera.hpp|src/RobotCamera.cpp" flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
+						<entry flags="VALUE_WORKSPACE_PATH|RESOLVED" kind="sourcePath" name=""/>
 					</sourceEntries>
 				</configuration>
 			</storageModule>
