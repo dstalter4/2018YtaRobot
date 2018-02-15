@@ -93,7 +93,10 @@ TalonMotorGroup::TalonMotorGroup( int numMotors, int firstCANId, MotorGroupContr
 ////////////////////////////////////////////////////////////////
 void TalonMotorGroup::SetCoastMode()
 {
-    m_pMotors[0]->SetNeutralMode(NeutralMode::Coast);
+    for (int i = 0; i < m_NumMotors; i++)
+    {
+        m_pMotors[i]->SetNeutralMode(NeutralMode::Coast);
+    }
 }
 
 
@@ -106,7 +109,10 @@ void TalonMotorGroup::SetCoastMode()
 ////////////////////////////////////////////////////////////////
 void TalonMotorGroup::SetBrakeMode()
 {
-    m_pMotors[0]->SetNeutralMode(NeutralMode::Brake);
+    for (int i = 0; i < m_NumMotors; i++)
+    {
+        m_pMotors[i]->SetNeutralMode(NeutralMode::Brake);
+    }
 }
 
 

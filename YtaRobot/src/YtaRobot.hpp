@@ -75,15 +75,14 @@ private:
 
     // TYPEDEFS
     typedef DriverStation::Alliance Alliance;
-    typedef Relay::Value RelayValue;
-    typedef DoubleSolenoid::Value SolenoidState;
     typedef TalonMotorGroup::MotorGroupControlMode MotorGroupControlMode;
     
     // ENUMS
     enum ControllerType
     {
         LOGITECH_EXTREME,
-        LOGITECH_GAMEPAD
+        LOGITECH_GAMEPAD,
+        XBOX_GAMESIR
     };
     
     enum EncoderDirection
@@ -194,8 +193,11 @@ private:
     void DriveControlSequence();
     void SideDriveSequence();
     
-    // Functions to automate slightly moving the robot
+    // Function to automate slightly moving the robot
     void DirectionalInch(double speed, EncoderDirection direction);
+    
+    // Function to control cube intake
+    void CubeIntakeSequence();
 
     // Main sequence for LED control
     void LedSequence();
@@ -230,14 +232,16 @@ private:
     DriverStation *                 m_pDriverStation;                       // Driver station object for getting selections
     Joystick *                      m_pDriveJoystick;                       // Drive control option 1
     Joystick *                      m_pControlJoystick;                     // Robot functional control option 1
-    LogitechGamepad *               m_pLogitechDriveGamepad;                // Drive control option 2
-    LogitechGamepad *               m_pLogitechControlGamepad;              // Robot functional control option 2
+    LogitechGamepad *               m_pDriveLogitechGamepad;                // Drive control option 2
+    LogitechGamepad *               m_pControlLogitechGamepad;              // Robot functional control option 2
+    GenericHID *                    m_pGenericJoystick;
     
     // Motors
     TalonMotorGroup *               m_pLeftDriveMotors;                     // Left drive motor control
     TalonMotorGroup *               m_pRightDriveMotors;                    // Right drive motor control
     TalonMotorGroup *               m_pSideDriveMotors;                     // Side drive motor control
-    //TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
+    TalonMotorGroup *               m_pIntakeArmsVerticalMotors;            // Intake of the cube vertical control
+    TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
     //TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
     //TalonMotorGroup *               m_pShooterMotors;                       // Shooting of the cube
     
@@ -245,6 +249,8 @@ private:
     Relay *                         m_pLedRelay;                            // Controls whether or not the LEDs are lit up
     
     // Digital I/O
+    DigitalInput *                  m_pLeftArmLowerLimitSwitch;             // Left arm lower limit switch
+    DigitalInput *                  m_pRightArmLowerLimitSwitch;            // Right arm lower limit switch
     DigitalInput *                  m_pAutonomous1Switch;                   // Switch to select autonomous routine 1
     DigitalInput *                  m_pAutonomous2Switch;                   // Switch to select autonomous routine 2
     DigitalInput *                  m_pAutonomous3Switch;                   // Switch to select autonomous routine 3
@@ -259,7 +265,6 @@ private:
     Solenoid *                      m_pHangRaisePoleSolenoid;               // Lifts/lowers the pole from the robot body
     Solenoid *                      m_pHangExtendPoleSolenoid;              // Extends to pole from the raised position
     DoubleSolenoid *                m_pIntakeArmsHorizontalSolenoid;        // Controls horizontal movement of the intake arms
-    DoubleSolenoid *                m_pIntakeArmsVerticalSolenoid;          // Controls vertical movement of the intake arms
     
     // Servos
     // (none)
@@ -311,15 +316,12 @@ private:
     
     // Joysticks/Buttons
     static const ControllerType     DRIVE_CONTROLLER_TYPE                   = LOGITECH_GAMEPAD;
-    static const ControllerType     CONTROL_CONTROLLER_TYPE                 = LOGITECH_EXTREME;
+    static const ControllerType     CONTROL_CONTROLLER_TYPE                 = XBOX_GAMESIR;
     
     static const int                DRIVE_JOYSTICK_PORT                     = 0;
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
 
     // Driver buttons
-    static const int                SINGLE_SOLENOID_TOGGLE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  3 :  1;
-    static const int                DOUBLE_SOLENOID_TOGGLE_ON_BUTTON        = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  5 :  3;
-    static const int                DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON       = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  6 :  4;
     static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  5;
     static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  6;
     static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  7;
@@ -328,15 +330,23 @@ private:
     static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = 14;
     
     // Control buttons
+    static const int                DOUBLE_SOLENOID_TOGGLE_ON_BUTTON        = 1;
+    static const int                DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON       = 2;
+    static const int                INTAKE_FORWARD_BUTTON                   = 3;
+    static const int                INTAKE_REVERSE_BUTTON                   = 4;
+    static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = 5;
+    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = 6;
+    static const int                SINGLE_SOLENOID_TOGGLE_BUTTON           = 7;
     static const int                ESTOP_BUTTON                            = 14;
 
     // CAN Signals
     static const int                LEFT_MOTORS_CAN_START_ID                = 1;
     static const int                RIGHT_MOTORS_CAN_START_ID               = 3;
     static const int                SIDE_DRIVE_MOTORS_CAN_START_ID          = 5;
-    static const int                INTAKE_MOTORS_CAN_START_ID              = 7;
-    static const int                CONVEYOR_MOTORS_CAN_START_ID            = 9;
-    static const int                SHOOTER_MOTORS_CAN_START_ID             = 11;
+    static const int                SHOOTER_MOTORS_CAN_START_ID             = 7;
+    static const int                INTAKE_MOTORS_VERTICAL_CAN_START_ID     = 9;
+    static const int                INTAKE_MOTORS_CAN_START_ID              = 11;
+    static const int                CONVEYOR_MOTORS_CAN_START_ID            = 13;
 
     // PWM Signals
     // (none)
@@ -345,6 +355,8 @@ private:
     static const int                LED_RELAY_ID                            = 3;
     
     // Digital I/O Signals
+    static const int                LEFT_ARM_LOWER_LIMIT_SWITCH_INPUT       = 0;
+    static const int                RIGHT_ARM_LOWER_LIMIT_SWITCH_INPUT      = 1;
     static const int                AUTONOMOUS_1_SWITCH                     = 7;
     static const int                AUTONOMOUS_2_SWITCH                     = 8;
     static const int                AUTONOMOUS_3_SWITCH                     = 9;
@@ -353,13 +365,11 @@ private:
     static const int                ANALOG_GYRO_CHANNEL                     = 0;
     
     // Solenoid Signals
-    static const int                SIDE_DRIVE_SOLENOID_CHANNEL             = 0;
-    static const int                HANG_RAISE_POLE_SOLENOID_CHANNEL        = 1;
-    static const int                HANG_EXTEND_POLE_SOLENOID_CHANNEL       = 2;
-    static const int                INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL  = 4;
-    static const int                INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL  = 5;
-    static const int                INTAKE_VERTICAL_SOLENOID_FWD_CHANNEL    = 6;
-    static const int                INTAKE_VERTICAL_SOLENOID_REV_CHANNEL    = 7;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL  = 0;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL  = 1;
+    static const int                HANG_RAISE_POLE_SOLENOID_CHANNEL        = 2;
+    static const int                HANG_EXTEND_POLE_SOLENOID_CHANNEL       = 3;
+    static const int                SIDE_DRIVE_SOLENOID_CHANNEL             = 4;
     
     // Misc
     static const int                OFF                                     = 0;
@@ -368,6 +378,7 @@ private:
     static const int                NUMBER_OF_LEFT_DRIVE_MOTORS             = 2;
     static const int                NUMBER_OF_RIGHT_DRIVE_MOTORS            = 2;
     static const int                NUMBER_OF_SIDE_DRIVE_MOTORS             = 2;
+    static const int                NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS    = 2;
     static const int                NUMBER_OF_INTAKE_MOTORS                 = 2;
     static const int                NUMBER_OF_CONVEYOR_MOTORS               = 2;
     static const int                NUMBER_OF_SHOOTER_MOTORS                = 2;
@@ -394,6 +405,8 @@ private:
     static constexpr double         MOTOR_BACK_DRIVE_SPEED                  =  0.05;
     static constexpr double         INCHING_DRIVE_SPEED                     =  0.25;
     static constexpr double         INCHING_DRIVE_DELAY_S                   =  0.10;
+    static constexpr double         INTAKE_MOTOR_SPEED                      =  1.00;
+    static constexpr double         INTAKE_ARM_MOTOR_SPEED                  =  0.20;
     
     static constexpr double         CAMERA_RUN_INTERVAL_S                   =  1.00;
     static constexpr double         I2C_RUN_INTERVAL_S                      =  0.10;
