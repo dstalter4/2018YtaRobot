@@ -21,6 +21,7 @@
 // C++ INCLUDES
 #include "YtaRobot.hpp"                 // Robot class declaration
 #include "YtaRobotAutonomous.hpp"       // Autonomous declarations
+#include "RobotCamera.hpp"              // for interacting with cameras
 
 
 ////////////////////////////////////////////////////////////////
@@ -36,10 +37,14 @@ void YtaRobot::Autonomous()
     
     // Put everything in a stable state
     InitialStateSetup();
+    
     m_pAutonomousTimer->Stop();
     m_pAutonomousTimer->Reset();
     m_pSafetyTimer->Stop();
     m_pSafetyTimer->Reset();
+    
+    // Autonomous needs full camera processing
+    RobotCamera::SetFullProcessing(true);
     
     if (m_GameData[GAME_DATA_NEAR_SWITCH_INDEX] == FIELD_ELEMENT_LEFT_SIDE_CHARACTER)
     {

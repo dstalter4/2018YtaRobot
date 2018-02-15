@@ -43,6 +43,9 @@ public:
         AXIS
     };
     
+    // Set whether or not full vision processing can occur
+    inline static void SetFullProcessing(bool bState);
+    
     // Pick a camera to use
     inline static void SetCamera(CameraType camera);
     
@@ -51,9 +54,6 @@ public:
     
     // Toggle between what processed image is shown on the dashboard
     static void ToggleCameraProcessedImage();
-
-    // Main processing sequence
-    static bool ProcessTarget(bool bDoFullProcessing);
     
     // The vision thread itself
     static void VisionThread();
@@ -65,6 +65,9 @@ private:
 
     // Get an image and start to process it
     static void FilterImage();
+
+    // Process any targets identified by the filtering
+    static bool ProcessTarget(bool bDoFullProcessing);
 
     // Generate a report about the found particles in an image
     static void GenerateParticleReport();
@@ -94,23 +97,27 @@ private:
         double m_AspectRatio;
     };
     
-    static cs::UsbCamera        m_Cam0;                     // USB camera 0
-    static cs::UsbCamera        m_Cam1;                     // USB camera 1
-    static cs::CvSink           m_Cam0Sink;                 // Sink for camera 0
-    static cs::CvSink           m_Cam1Sink;                 // Sink for camera 1
-    static cs::CvSource         m_CameraOutput;             // Output source for processed images
-    static cv::Mat              m_SourceMat;                // The originating source mat from the current camera
-    static cv::Mat              m_ResizeOutputMat;          // Resized source mat
-    static cv::Mat              m_HsvThresholdOutputMat;    // HSV filtered mat
-    static cv::Mat              m_ErodeOutputMat;           // Erode output mat
-    static cv::Mat              m_MaskOutputMat;            // Masked output mat
-    static cv::Mat              m_OutputMat;                // The final output mat for displaying an (optionally) processed image
-    static cv::Mat *            m_pDashboardMat;            // Pointer to which mat should currently be sent to the dashboard
-    static CameraType           m_Camera;                   // Keep track of the current camera to process information from
+    static cs::UsbCamera                        m_Cam0;                     // USB camera 0
+    static cs::CvSink                           m_Cam0Sink;                 // Sink for camera 0
+    //static cs::UsbCamera                        m_Cam1;                     // USB camera 1
+    //static cs::CvSink                           m_Cam1Sink;                 // Sink for camera 1
+    static cs::CvSource                         m_CameraOutput;             // Output source for processed images
+    static cv::Mat                              m_SourceMat;                // The originating source mat from the current camera
+    static cv::Mat                              m_ResizeOutputMat;          // Resized source mat
+    static cv::Mat                              m_HsvThresholdOutputMat;    // HSV filtered mat
+    static cv::Mat                              m_ErodeOutputMat;           // Erode output mat
+    static cv::Mat                              m_ContoursMat;              // Contours output mat
+    static cv::Mat                              m_FilteredContoursMat;      // Filtered contours output mat
+    static cv::Mat                              m_OutputMat;                // The final output mat for displaying an (optionally) processed image
+    static cv::Mat *                            m_pDashboardMat;            // Pointer to which mat should currently be sent to the dashboard
+    static std::vector<std::vector<cv::Point>>  m_Contours;                 // Contours in the image
+    static std::vector<std::vector<cv::Point>>  m_FilteredContours;         // Filtered contours in the image
+    static CameraType                           m_Camera;                   // Keep track of the current camera to process information from
+    static bool                                 m_bDoFullProcessing;        // Indicates whether or not full image processing should occur
     
-    //ParticleReport m_TargetReport;                          // Information about the best target particle we've found
-    //ParticleReport m_IteratorParicleReport;                 // An object to iterate over objects when identifying a target
-    //std::vector<ParticleReport> m_ParticleReports;          // The list of particle reports
+    //ParticleReport m_TargetReport;                                          // Information about the best target particle we've found
+    //ParticleReport m_IteratorParicleReport;                                 // An object to iterate over objects when identifying a target
+    //std::vector<ParticleReport> m_ParticleReports;                          // The list of particle reports
 
     //int m_HeartBeat;                // Keep alive with the C++ dashboard
     //int m_NumMaskedParticles;       // Number of masked particles found
@@ -124,12 +131,12 @@ private:
 
     //bool m_bTargetInRange;          // Remember the last result from full vision processing
     
-    static const int    CAMERA_0_DEV_NUM                    = 0;
-    static const int    CAMERA_1_DEV_NUM                    = 1;
-    static const int    CAMERA_X_RES                        = 320;
-    static const int    CAMERA_Y_RES                        = 240;
-    static const char * CAMERA_0_NAME;
-    static const char * CAMERA_1_NAME;
+    //static const int    CAMERA_0_DEV_NUM                    = 0;
+    //static const int    CAMERA_1_DEV_NUM                    = 1;
+    static const int    CAMERA_X_RES                        = 640;
+    static const int    CAMERA_Y_RES                        = 480;
+    //static const char * CAMERA_0_NAME;
+    //static const char * CAMERA_1_NAME;
     static const char * CAMERA_OUTPUT_NAME;
     
     //static const int RED_REFLECT_MIN                    = 94;
@@ -150,6 +157,20 @@ private:
     //static constexpr double RADIANS_TO_DEGREES          = M_PI / 180.0;
     //static constexpr double DECIMAL_TO_PERCENT          = 100.0;
 };
+
+
+
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::SetFullProcessing
+///
+/// This method sets whether or not full vision processing
+/// should occur.
+///
+////////////////////////////////////////////////////////////////
+inline void RobotCamera::SetFullProcessing(bool bState)
+{
+    m_bDoFullProcessing = bState;
+}
 
 
 

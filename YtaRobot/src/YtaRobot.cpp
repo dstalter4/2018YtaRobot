@@ -45,15 +45,19 @@ YtaRobot::YtaRobot()
 : m_pDriverStation                  (&DriverStation::GetInstance())
 , m_pDriveJoystick                  (new Joystick(DRIVE_JOYSTICK_PORT))
 , m_pControlJoystick                (new Joystick(CONTROL_JOYSTICK_PORT))
-, m_pLogitechDriveGamepad           (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
-, m_pLogitechControlGamepad         (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
+, m_pDriveLogitechGamepad           (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
+, m_pControlLogitechGamepad         (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
+, m_pGenericJoystick                (nullptr)
 , m_pLeftDriveMotors                (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
 , m_pRightDriveMotors               (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
 , m_pSideDriveMotors                (new TalonMotorGroup(NUMBER_OF_SIDE_DRIVE_MOTORS, SIDE_DRIVE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
-//, m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+, m_pIntakeArmsVerticalMotors       (new TalonMotorGroup(NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS, INTAKE_MOTORS_VERTICAL_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+, m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 //, m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 //, m_pShooterMotors                  (new TalonMotorGroup(NUMBER_OF_SHOOTER_MOTORS, SHOOTER_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pLedRelay                       (new Relay(LED_RELAY_ID))
+, m_pLeftArmLowerLimitSwitch        (new DigitalInput(LEFT_ARM_LOWER_LIMIT_SWITCH_INPUT))
+, m_pRightArmLowerLimitSwitch       (new DigitalInput(RIGHT_ARM_LOWER_LIMIT_SWITCH_INPUT))
 , m_pAutonomous1Switch              (new DigitalInput(AUTONOMOUS_1_SWITCH))
 , m_pAutonomous2Switch              (new DigitalInput(AUTONOMOUS_2_SWITCH))
 , m_pAutonomous3Switch              (new DigitalInput(AUTONOMOUS_3_SWITCH))
@@ -62,7 +66,6 @@ YtaRobot::YtaRobot()
 , m_pHangRaisePoleSolenoid          (new Solenoid(HANG_RAISE_POLE_SOLENOID_CHANNEL))
 , m_pHangExtendPoleSolenoid         (new Solenoid(HANG_EXTEND_POLE_SOLENOID_CHANNEL))
 , m_pIntakeArmsHorizontalSolenoid   (new DoubleSolenoid(INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL, INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL))
-, m_pIntakeArmsVerticalSolenoid     (new DoubleSolenoid(INTAKE_VERTICAL_SOLENOID_FWD_CHANNEL, INTAKE_VERTICAL_SOLENOID_REV_CHANNEL))
 , m_pAutonomousTimer                (new Timer())
 , m_pInchingDriveTimer              (new Timer())
 , m_pI2cTimer                       (new Timer())
@@ -82,6 +85,25 @@ YtaRobot::YtaRobot()
 , m_bLed                            (false)
 {
     DisplayMessage("Robot constructor.");
+    
+    // Set the controllers to the correct objects
+    switch (DRIVE_CONTROLLER_TYPE)
+    {
+        case LOGITECH_EXTREME:
+        {
+            m_pGenericJoystick = m_pDriveJoystick;
+            break;
+        }
+        case LOGITECH_GAMEPAD:
+        {
+            m_pGenericJoystick = m_pDriveLogitechGamepad;
+            break;
+        }
+        default:
+        {
+            break;
+        }
+    }
     
     // Reset all timers
     m_pAutonomousTimer->Reset();
@@ -112,9 +134,17 @@ void YtaRobot::InitialStateSetup()
     // Start with motors off
     m_pLeftDriveMotors->Set(OFF);
     m_pRightDriveMotors->Set(OFF);
-    //m_pIntakeMotors->Set(OFF);
+    m_pIntakeArmsVerticalMotors->Set(OFF);
+    m_pIntakeMotors->Set(OFF);
     //m_pConveyorMotors->Set(OFF);
     //m_pShooterMotors->Set(OFF);
+    
+    // Configure brake or coast for the drive motors
+    m_pLeftDriveMotors->SetBrakeMode();
+    m_pRightDriveMotors->SetBrakeMode();
+    
+    // Explicitly set arm vertical control to brake
+    m_pIntakeArmsVerticalMotors->SetBrakeMode();
     
     // Tare encoders
     m_pLeftDriveMotors->TareEncoder();
@@ -125,7 +155,6 @@ void YtaRobot::InitialStateSetup()
     m_pHangRaisePoleSolenoid->Set(false);
     m_pHangExtendPoleSolenoid->Set(false);
     m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
-    m_pIntakeArmsVerticalSolenoid->Set(DoubleSolenoid::kOff);
     
     // Stop/clear any timers, just in case
     m_pInchingDriveTimer->Stop();
@@ -163,12 +192,8 @@ void YtaRobot::OperatorControl()
     // just in case clear everything.
     InitialStateSetup();
     
-    // Teleop will use coast mode
-    //m_pLeftDriveMotors->SetCoastMode();
-    //m_pRightDriveMotors->SetCoastMode();
-    // Teleop will use brake mode
-    m_pLeftDriveMotors->SetBrakeMode();
-    m_pRightDriveMotors->SetBrakeMode();
+    // Tele-op won't do detailed processing of the images
+    RobotCamera::SetFullProcessing(true);
     
     // Main tele op loop
     while ( m_pDriverStation->IsOperatorControl() && m_pDriverStation->IsEnabled() )
@@ -176,7 +201,9 @@ void YtaRobot::OperatorControl()
         //CheckForDriveSwap();
 
         DriveControlSequence();
-        SideDriveSequence();
+        //SideDriveSequence();
+        
+        CubeIntakeSequence();
         
         //LedSequence();
 
@@ -209,6 +236,47 @@ void YtaRobot::OperatorControl()
 
 
 ////////////////////////////////////////////////////////////////
+/// @method YtaRobot::CubeIntakeSequence
+///
+/// This method contains the main workflow for controlling cube
+/// intake on the robot.
+///
+////////////////////////////////////////////////////////////////
+void YtaRobot::CubeIntakeSequence()
+{
+    if (m_pControlJoystick->GetRawButton(INTAKE_FORWARD_BUTTON))
+    {
+        m_pIntakeMotors->Set(-INTAKE_MOTOR_SPEED);
+    }
+    else if (m_pControlJoystick->GetRawButton(INTAKE_REVERSE_BUTTON))
+    {
+        m_pIntakeMotors->Set(INTAKE_MOTOR_SPEED);
+    }
+    else
+    {
+        m_pIntakeMotors->Set(OFF);
+    }
+    
+    // Limit switches are normally closed, so motors are applied when Get() is true
+    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_UP_BUTTON))
+    {
+        m_pIntakeArmsVerticalMotors->Set(INTAKE_ARM_MOTOR_SPEED);
+    }
+    else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_DOWN_BUTTON))
+             //&& m_pLeftArmLowerLimitSwitch->Get()
+             //&& m_pRightArmLowerLimitSwitch->Get())
+    {
+        m_pIntakeArmsVerticalMotors->Set(-INTAKE_ARM_MOTOR_SPEED);
+    }
+    else
+    {
+        m_pIntakeArmsVerticalMotors->Set(OFF);
+    }
+}
+
+
+
+////////////////////////////////////////////////////////////////
 /// @method YtaRobot::LedSequence
 ///
 /// This method contains the main workflow for controlling
@@ -220,12 +288,12 @@ void YtaRobot::LedSequence()
     // If the target's in range, give a visual indication
     if (m_bLed)
     {
-        m_pLedRelay->Set(RelayValue::kOn);
+        m_pLedRelay->Set(Relay::kOn);
     }
     else
     {
         // Otherwise set them off
-        m_pLedRelay->Set(RelayValue::kOff);
+        m_pLedRelay->Set(Relay::kOff);
     }
 }
 
@@ -240,7 +308,7 @@ void YtaRobot::LedSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SolenoidSequence()
 {
-    if (m_pLogitechDriveGamepad->GetRawButton(SINGLE_SOLENOID_TOGGLE_BUTTON))
+    if (m_pControlJoystick->GetRawButton(SINGLE_SOLENOID_TOGGLE_BUTTON))
     {
         m_pSideDriveSolenoid->Set(true);
     }
@@ -249,11 +317,11 @@ void YtaRobot::SolenoidSequence()
         m_pSideDriveSolenoid->Set(false);
     }
     
-    if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_ON_BUTTON))
+    if (m_pControlJoystick->GetRawButton(DOUBLE_SOLENOID_TOGGLE_ON_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kForward);
     }
-    else if (m_pLogitechDriveGamepad->GetRawButton(DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON))
+    else if (m_pControlJoystick->GetRawButton(DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
@@ -371,19 +439,15 @@ void YtaRobot::I2cSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::CameraSequence()
 {
-    // Do the camera processing
-    //bool bDoFullVisionProcessing = false;
-    
-    // To not kill the CPU/hog this thread, only do full
-    // vision processing (particle analysis) periodically.
+    // To not kill the CPU, only do full vision processing (particle analysis) periodically
     if (m_pCameraRunTimer->Get() >= CAMERA_RUN_INTERVAL_S)
     {
-        //bDoFullVisionProcessing = true;
         m_pCameraRunTimer->Reset();
     }
     
-    m_pToggleCameraTrigger->m_bCurrentValue = m_pLogitechDriveGamepad->GetRawButton(CAMERA_TOGGLE_BUTTON);
-    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pLogitechDriveGamepad->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
+    // Check for any camera toggling
+    m_pToggleCameraTrigger->m_bCurrentValue = m_pDriveLogitechGamepad->GetRawButton(CAMERA_TOGGLE_BUTTON);
+    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pDriveLogitechGamepad->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
     
     if (DetectTriggerChange(m_pToggleCameraTrigger))
     {
@@ -425,11 +489,11 @@ void YtaRobot::DriveControlSequence()
     else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
     {
         // Computes what the maximum drive speed could be
-        throttleControl = GetThrottleControl(m_pLogitechDriveGamepad);
+        throttleControl = GetThrottleControl(m_pDriveLogitechGamepad);
         
         // Get gamepad X/Y inputs
-        xAxisDrive = m_pLogitechDriveGamepad->GetX();
-        yAxisDrive = m_pLogitechDriveGamepad->GetY();
+        xAxisDrive = m_pDriveLogitechGamepad->GetX();
+        yAxisDrive = m_pDriveLogitechGamepad->GetY();
     }
     else
     {
@@ -504,8 +568,8 @@ void YtaRobot::SideDriveSequence()
     }
     else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
     {
-        bSideDriveLeft = m_pLogitechDriveGamepad->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
-        bSideDriveRight = m_pLogitechDriveGamepad->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
+        bSideDriveLeft = m_pDriveLogitechGamepad->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
+        bSideDriveRight = m_pDriveLogitechGamepad->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
     }
     else
     {

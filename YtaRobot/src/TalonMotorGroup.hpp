@@ -78,8 +78,8 @@ private:
     // Prevent default construction/deletion/copy/assignment
     TalonMotorGroup();
     ~TalonMotorGroup();
-    TalonMotorGroup( const TalonMotorGroup& );
-    TalonMotorGroup & operator=( const TalonMotorGroup& );
+    TalonMotorGroup( const TalonMotorGroup& ) = delete;
+    TalonMotorGroup & operator=( const TalonMotorGroup& ) = delete;
 };
 
 #endif // TALONMOTORGROUP_HPP
