@@ -7,6 +7,7 @@
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   13-FEB-2016 Created.
+/// - dts   15-FEB-2018 Convert to opencv processing.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -22,26 +23,30 @@
 #include "RobotCamera.hpp"          // For class declaration
 
 // STATIC MEMBER DATA
-cs::UsbCamera                       RobotCamera::m_Cam0;
-cs::CvSink                          RobotCamera::m_Cam0Sink;
-//cs::UsbCamera                       RobotCamera::m_Cam1;
-//cs::CvSink                          RobotCamera::m_Cam1Sink;
-cs::CvSource                        RobotCamera::m_CameraOutput;
-cv::Mat                             RobotCamera::m_SourceMat;
-cv::Mat                             RobotCamera::m_ResizeOutputMat;
-cv::Mat                             RobotCamera::m_HsvThresholdOutputMat; 
-cv::Mat                             RobotCamera::m_ErodeOutputMat;
-cv::Mat                             RobotCamera::m_ContoursMat;
-cv::Mat                             RobotCamera::m_FilteredContoursMat;
-cv::Mat                             RobotCamera::m_OutputMat;
-cv::Mat *                           RobotCamera::m_pDashboardMat;
-std::vector<std::vector<cv::Point>> RobotCamera::m_Contours;
-std::vector<std::vector<cv::Point>> RobotCamera::m_FilteredContours;
-RobotCamera::CameraType             RobotCamera::m_Camera;
-bool                                RobotCamera::m_bDoFullProcessing;
-//const char *                        RobotCamera::CAMERA_0_NAME = "USB Camera 0";
-//const char *                        RobotCamera::CAMERA_1_NAME = "USB Camera 1";
-const char *                        RobotCamera::CAMERA_OUTPUT_NAME = "Camera Output";
+cs::UsbCamera                                   RobotCamera::m_Cam0;
+cs::CvSink                                      RobotCamera::m_Cam0Sink;
+//cs::UsbCamera                                   RobotCamera::m_Cam1;
+//cs::CvSink                                      RobotCamera::m_Cam1Sink;
+cs::CvSource                                    RobotCamera::m_CameraOutput;
+
+cv::Mat                                         RobotCamera::m_SourceMat;
+cv::Mat                                         RobotCamera::m_ResizeOutputMat;
+cv::Mat                                         RobotCamera::m_HsvThresholdOutputMat; 
+cv::Mat                                         RobotCamera::m_ErodeOutputMat;
+cv::Mat                                         RobotCamera::m_ContoursMat;
+cv::Mat                                         RobotCamera::m_FilteredContoursMat;
+cv::Mat                                         RobotCamera::m_OutputMat;
+cv::Mat *                                       RobotCamera::m_pDashboardMat;
+
+std::vector<std::vector<cv::Point>>             RobotCamera::m_Contours;
+std::vector<std::vector<cv::Point>>             RobotCamera::m_FilteredContours;
+
+std::vector<RobotCamera::VisionTargetReport>    RobotCamera::m_ContourTargetReports;
+RobotCamera::VisionTargetReport                 RobotCamera::m_VisionTargetReport;
+RobotCamera::CameraType                         RobotCamera::m_Camera;
+bool                                            RobotCamera::m_bDoFullProcessing;
+int                                             RobotCamera::m_HeartBeat;
+const char *                                    RobotCamera::CAMERA_OUTPUT_NAME = "Camera Output";
 
 
 
@@ -100,11 +105,21 @@ void RobotCamera::VisionThread()
         if (m_bDoFullProcessing)
         {
             // Filter the image
-            FilterImage();
+            ProcessImage();
+            
+            // Try and identify the reflective tape
+            FindReflectiveTapeTarget();
+            
+            // Calculate some info based on the reflective tape
+            CalculateReflectiveTapeValues();
+        
         }
         
         // Display the image to the dashboard
         m_CameraOutput.PutFrame(*m_pDashboardMat);
+        
+        // Don't call this in production code - it hogs resources
+        //UpdateSmartDashboard();
     }
 }
 
@@ -118,22 +133,27 @@ void RobotCamera::VisionThread()
 ////////////////////////////////////////////////////////////////
 void RobotCamera::UpdateSmartDashboard()
 {
-    /*
-    SmartDashboard::PutNumber("Masked particles",   m_NumMaskedParticles);
-    SmartDashboard::PutNumber("Filtered particles", m_NumFilteredParticles);
-    SmartDashboard::PutNumber("HeartBeat",          m_HeartBeat++);
-    SmartDashboard::PutNumber("Left bound",         m_TargetReport.m_BoundingRectLeft);
-    SmartDashboard::PutNumber("Right bound",        m_TargetReport.m_BoundingRectRight);
-    SmartDashboard::PutNumber("Top bound",          m_TargetReport.m_BoundingRectTop);
-    SmartDashboard::PutNumber("Bottom bound",       m_TargetReport.m_BoundingRectBottom);
-    SmartDashboard::PutNumber("ConvexHull",         m_TargetReport.m_ConvexHullArea);
-    SmartDashboard::PutNumber("Bounding area",      m_BoundingArea);
-    SmartDashboard::PutNumber("Shape area",         m_TargetReport.m_Area);
-    SmartDashboard::PutNumber("Shape area %",       m_ShapeAreaPercent);
-    SmartDashboard::PutNumber("Trapezoid score",    m_TrapezoidPercent);
-    SmartDashboard::PutNumber("Camera distance",    m_CameraDistance);
-    SmartDashboard::PutNumber("Ground distance",    m_GroundDistance);
-    */
+    SmartDashboard::PutNumber("HeartBeat",                  m_HeartBeat++);
+    
+    SmartDashboard::PutNumber("Bounding rect X",            m_VisionTargetReport.m_BoundingRectX);
+    SmartDashboard::PutNumber("Bounding rect Y",            m_VisionTargetReport.m_BoundingRectY);
+    SmartDashboard::PutNumber("Bounding rect width",        m_VisionTargetReport.m_BoundingRectWidth);
+    SmartDashboard::PutNumber("Bounding rect height",       m_VisionTargetReport.m_BoundingRectHeight);
+    SmartDashboard::PutNumber("Bounding rect area",         m_VisionTargetReport.m_BoundingRectArea);
+    SmartDashboard::PutNumber("Bounding rect aspect ratio", m_VisionTargetReport.m_BoundingRectAspectRatio);
+    
+    SmartDashboard::PutNumber("Contour area",               m_VisionTargetReport.m_Area);
+    SmartDashboard::PutNumber("Contour perimeter",          m_VisionTargetReport.m_Perimeter);
+    SmartDashboard::PutNumber("Contour convex hull area",   m_VisionTargetReport.m_ConvexHullArea);
+    SmartDashboard::PutNumber("Contour solidity",           m_VisionTargetReport.m_Solidity);
+    SmartDashboard::PutNumber("Contour vertices",           m_VisionTargetReport.m_Vertices);
+    
+    SmartDashboard::PutNumber("Area %",                     m_VisionTargetReport.m_PercentAreaToImageArea);
+    SmartDashboard::PutNumber("Trapezoid %",                m_VisionTargetReport.m_TrapezoidPercent);
+    SmartDashboard::PutNumber("Camera distance",            m_VisionTargetReport.m_CameraDistance);
+    SmartDashboard::PutNumber("Ground distance",            m_VisionTargetReport.m_GroundDistance);
+    SmartDashboard::PutNumber("Target in range",            static_cast<int>(m_VisionTargetReport.m_bTargetInRange));
+    SmartDashboard::PutNumber("Target report valid",        static_cast<int>(m_VisionTargetReport.m_bIsValid));
 }
 
 
@@ -179,65 +199,35 @@ void RobotCamera::ToggleCameraProcessedImage()
     }
 }
 
-
-
-////////////////////////////////////////////////////////////////
-/// @method RobotCamera::ProcessTarget
-///
-/// The public interface method for getting information about
-/// the target.
-///
-////////////////////////////////////////////////////////////////
-bool RobotCamera::ProcessTarget(bool bDoFullProcessing)
-{
-    return false;
-    /*
-    GetAndDisplayImage();
     
-    if (bDoFullProcessing)
-    {
-        FilterImage();
-        
-        GenerateParticleReport();
-        
-        CalculateTargetParticleValues();
-        
-        // Don't call this in production code - it hogs resources
-        //UpdateSmartDashboard();
-    }
-
-    return m_bTargetInRange;
-    */
-
-    // Shape drawing coordinates: Top, Left, Height, Width
-    //int L = std::trunc(m_TargetReport.BoundingRectLeft);
-    //int R = std::trunc(m_TargetReport.BoundingRectRight);
-    //int T = std::trunc(m_TargetReport.BoundingRectTop);
-    //int B = std::trunc(m_TargetReport.BoundingRectBottom);
-    //int W = std::trunc(R - L);
-    //int H = std::trunc(B - T);
-    //m_pAxisCamera->GetImage(m_pImageFrame);
-    //imaqDrawShapeOnImage(frame, frame, { 10, 10, 100, 100 }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 0.0);
-    //imaqDrawShapeOnImage(m_pImageFrame, m_pImageFrame, { T, L, H, W }, DrawMode::IMAQ_DRAW_VALUE, ShapeMode::IMAQ_SHAPE_OVAL, 1.0);
-    //CameraServer::GetInstance()->SetImage(pDrawableImage);
-    //AthenaCameraServer::GetInstance()->SetImage(pDrawableImage);
+    
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::ProcessImage
+///
+/// Processes an image from the camera to try and identify
+/// vision targets.
+///
+////////////////////////////////////////////////////////////////
+void RobotCamera::ProcessImage()
+{
+    FilterImageHsv();
+    ErodeImage();
+    FindContours();
+    FilterContours();
 }
 
     
     
 ////////////////////////////////////////////////////////////////
-/// @method RobotCamera::FilterImage
+/// @method RobotCamera::FilterImageHsv
 ///
-/// Starts to filter an image.  It applies a color filter to the
-/// image, then counts and filters the particles.
+/// Applies a color filter to the image based on Hue, Saturation
+/// and Value.
 ///
 ////////////////////////////////////////////////////////////////
-void RobotCamera::FilterImage()
+void RobotCamera::FilterImageHsv()
 {
     // min/max values
-    //static double hsvThresholdHue[] = {55.03597122302158, 136.06060606060603};
-    //static double hsvThresholdSaturation[] = {94.01978417266187, 169.14141414141415};
-    //static double hsvThresholdValue[] = {142.17625899280577, 255.0};
     static double hsvThresholdHue[] = {20.0, 80.0};
     static double hsvThresholdSaturation[] = {0.0, 60.0};
     static double hsvThresholdValue[] = {200.0, 255.0};
@@ -262,7 +252,18 @@ void RobotCamera::FilterImage()
                 cv::Scalar(hsvThresholdHue[0], hsvThresholdSaturation[0], hsvThresholdValue[0]),
                 cv::Scalar(hsvThresholdHue[1], hsvThresholdSaturation[1], hsvThresholdValue[1]),
                 m_HsvThresholdOutputMat);
+}
+
     
+    
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::ErodeImage
+///
+/// Erodes an image.
+///
+////////////////////////////////////////////////////////////////
+void RobotCamera::ErodeImage()
+{
     // Erode image
     // @param src input image
     // @param dst output image
@@ -273,7 +274,18 @@ void RobotCamera::FilterImage()
     // @param borderValue border value in case of a constant border
     cv::Mat cvErodeKernel;
     cv::erode(m_HsvThresholdOutputMat, m_ErodeOutputMat, cvErodeKernel, cv::Point(-1, -1), 1, cv::BORDER_CONSTANT, cv::Scalar(-1));
+}
+
     
+    
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::FindContours
+///
+/// Finds the contours in an image.
+///
+////////////////////////////////////////////////////////////////
+void RobotCamera::FindContours()
+{    
     // Find contours
     // @param image Source, an 8-bit single-channel image.
     // @param contours Detected contours. Each contour is stored as a vector of points (e.g. std::vector<std::vector<cv::Point> >).
@@ -294,7 +306,18 @@ void RobotCamera::FilterImage()
     // @param contourIdx Parameter indicating a contour to draw. If it is negative, all the contours are drawn.
     // @param color Color of the contours.
     cv::drawContours(m_ContoursMat, m_Contours, -1, cv::Scalar(255, 255, 255));
+}
+
     
+    
+////////////////////////////////////////////////////////////////
+/// @method RobotCamera::FilterContours
+///
+/// Filters the contours found by certain criteria.
+///
+////////////////////////////////////////////////////////////////
+void RobotCamera::FilterContours()
+{    
     const double FILTER_CONTOURS_MIN_WIDTH      = 0.0;
     const double FILTER_CONTOURS_MAX_WIDTH      = 1000.0;
     const double FILTER_CONTOURS_MIN_HEIGHT     = 0.0;
@@ -310,20 +333,28 @@ void RobotCamera::FilterImage()
     const double FILTER_CONTOURS_MAX_RATIO      = 1000.0;
     
     // Filter contours
-    std::vector<cv::Point> hull;
     m_FilteredContours.clear();
+    m_ContourTargetReports.clear();
     for (std::vector<cv::Point> contour : m_Contours)
     {
+        VisionTargetReport currentContourReport;
+        
+        // Bounding rectangle filtering
         cv::Rect boundingRectangle = cv::boundingRect(contour);
         if ((boundingRectangle.width) < FILTER_CONTOURS_MIN_WIDTH || (boundingRectangle.width > FILTER_CONTOURS_MAX_WIDTH))
         {
             continue;
         }
-        
         if ((boundingRectangle.height < FILTER_CONTOURS_MIN_HEIGHT) || (boundingRectangle.height > FILTER_CONTOURS_MAX_HEIGHT))
         {
             continue;
         }
+        // Fill out bounding rectangle info (done here so the loop can continue if criteria aren't met)
+        currentContourReport.m_BoundingRectX = boundingRectangle.x;
+        currentContourReport.m_BoundingRectY = boundingRectangle.y;
+        currentContourReport.m_BoundingRectWidth = boundingRectangle.width;
+        currentContourReport.m_BoundingRectHeight = boundingRectangle.height;
+        currentContourReport.m_BoundingRectArea = boundingRectangle.width * boundingRectangle.height;
         
         // Max area is not a standard filtering technique in GRIP
         double area = cv::contourArea(contour);
@@ -331,6 +362,7 @@ void RobotCamera::FilterImage()
         {
             continue;
         }
+        currentContourReport.m_Area = area;
         
         // Max perimeter is not a standard filtering technique in GRIP
         double perimeter = cv::arcLength(contour, true);
@@ -338,27 +370,38 @@ void RobotCamera::FilterImage()
         {
             continue;
         }
+        currentContourReport.m_Perimeter = perimeter;
         
+        std::vector<cv::Point> hull;
         cv::convexHull(cv::Mat(contour, true), hull);
-        double solid = 100.0 * area / cv::contourArea(hull);
-        if ((solid < FILTER_CONTOURS_SOLIDITY[0]) || (solid > FILTER_CONTOURS_SOLIDITY[1]))
+        double hullArea = cv::contourArea(hull);
+        double solidity = 100.0 * (area / hullArea);
+        if ((solidity < FILTER_CONTOURS_SOLIDITY[0]) || (solidity > FILTER_CONTOURS_SOLIDITY[1]))
         {
             continue;
         }
+        currentContourReport.m_ConvexHullArea = hullArea;
+        currentContourReport.m_Solidity = solidity;
         
+        // Number of vertices
         if ((contour.size() < FILTER_CONTOURS_MIN_VERTICES) || (contour.size() > FILTER_CONTOURS_MAX_VERTICES))
         {
             continue;
         }
+        currentContourReport.m_Vertices = contour.size();
         
+        // Aspect ratio
         double ratio = static_cast<double>(boundingRectangle.width) / static_cast<double>(boundingRectangle.height);
         if ((ratio < FILTER_CONTOURS_MIN_RATIO) || (ratio > FILTER_CONTOURS_MAX_RATIO))
         {
             continue;
         }
+        currentContourReport.m_BoundingRectAspectRatio = boundingRectangle.width / boundingRectangle.height;
         
         // All criteria passed, add this contour
+        currentContourReport.m_bIsValid = true;
         m_FilteredContours.push_back(contour);
+        m_ContourTargetReports.push_back(currentContourReport);
     }
     
     // @param image Destination image.
@@ -371,87 +414,74 @@ void RobotCamera::FilterImage()
 
 
 ////////////////////////////////////////////////////////////////
-/// @method RobotCamera::GenerateParticleReport
+/// @method RobotCamera::FindReflectiveTapeTarget
 ///
-/// This method iterates over the found particles and performs
-/// certain calculations on it.  It saves off the report of the
-/// target with the largest area.
+/// This method iterates over the filtered contours and tries to
+/// identify the reflective tape target.  It will save off the
+/// appropriate contour if one that meets the criteria is found.
 ///
 ////////////////////////////////////////////////////////////////
-void RobotCamera::GenerateParticleReport()
+void RobotCamera::FindReflectiveTapeTarget()
 {
-    /*
-    if (m_NumFilteredParticles > 0)
+    if (m_ContourTargetReports.size() > 0)
     {
-        double currentMaxArea = 0;
+        double currentMaxArea = 0.0;
 
-        // Measure particles and sort by particle size
-        for (int particleIndex = 0; particleIndex < m_NumFilteredParticles; particleIndex++)
+        // Iterate through the contour reports, searching for the best candidate
+        for (VisionTargetReport report : m_ContourTargetReports)
         {
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_AREA_BY_IMAGE_AREA,   &(m_IteratorParicleReport.m_PercentAreaToImageArea));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_AREA,                 &(m_IteratorParicleReport.m_Area));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_CONVEX_HULL_AREA,     &(m_IteratorParicleReport.m_ConvexHullArea));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_BOUNDING_RECT_TOP,    &(m_IteratorParicleReport.m_BoundingRectTop));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_BOUNDING_RECT_LEFT,   &(m_IteratorParicleReport.m_BoundingRectLeft));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_BOUNDING_RECT_BOTTOM, &(m_IteratorParicleReport.m_BoundingRectBottom));
-            imaqMeasureParticle(m_pBinaryFrame, particleIndex, 0, IMAQ_MT_BOUNDING_RECT_RIGHT,  &(m_IteratorParicleReport.m_BoundingRectRight));
-            m_ParticleReports.push_back(m_IteratorParicleReport);
-
-            m_IteratorParicleReport.m_AspectRatio = (m_IteratorParicleReport.m_BoundingRectRight - m_IteratorParicleReport.m_BoundingRectLeft) /
-                                                    (m_IteratorParicleReport.m_BoundingRectBottom - m_IteratorParicleReport.m_BoundingRectTop);
-
-            if (m_IteratorParicleReport.m_Area > currentMaxArea)
+            if (report.m_Area > currentMaxArea)
             {
-                currentMaxArea = m_IteratorParicleReport.m_Area;
-                m_TargetReport = m_IteratorParicleReport;
+                currentMaxArea = report.m_Area;
+                m_VisionTargetReport = report;
             }
         }
     }
-
-    // Concerns about using too much of the heap and frequent dynamic garbage collection?
-    m_ParticleReports.erase(m_ParticleReports.begin(), m_ParticleReports.end());
-    */
+    else
+    {
+        // If no contour met criteria, clear out the target report information
+        std::memset(&m_VisionTargetReport, 0, sizeof(VisionTargetReport));
+    }
 }
 
 
 
 ////////////////////////////////////////////////////////////////
-/// @method RobotCamera::CalculateTargetParticleValues
+/// @method RobotCamera::CalculateReflectiveTapeValues
 ///
 /// This method performs certain calculations on the best found
-/// particle report.  It will figure out distances to the target
-/// and return true if it finds a particle within the expected
-/// range.
+/// contour.  It will primarily compute distances related to the
+/// vision target.
 ///
 ////////////////////////////////////////////////////////////////
-void RobotCamera::CalculateTargetParticleValues()
+void RobotCamera::CalculateReflectiveTapeValues()
 {
+    // If there is no vision target report available, don't proceed
+    if (!m_VisionTargetReport.m_bIsValid)
+    {
+        return;
+    }
+    
     /*
-    int32_t xRes = 0;
-    int32_t yRes = 0;
-    imaqGetImageSize(m_pBinaryFrame, &xRes, &yRes);
-
     // Target distance: 11-16 ft. (132-192 in.)
     // Bottom of goal is 7 ft. (84 in.) from ground
 
-    // d = (TLengthIn * xRes) / (2 * TLengthPix * tan(FOVAng)), negated
-    //double distance = -1 * (20 * xRes) / (2 * (targetReport.BoundingRectRight - targetReport.BoundingRectLeft) * tan(18));//tan(21.5778173));//tan(37.4));
-    m_CameraDistance = (TARGET_SIZE * xRes) /
-                       (2.0 * (m_TargetReport.m_BoundingRectRight - m_TargetReport.m_BoundingRectLeft)
-                            * tan(CALIBRATED_CAMERA_ANGLE*RADIANS_TO_DEGREES));
+    // d = (TLengthIn * CAMERA_X_RES) / (2 * TLengthPix * tan(FOVAng)), negated
+    //double distance = -1 * (20 * CAMERA_X_RES) / (2 * (targetReport.BoundingRectRight - targetReport.BoundingRectLeft) * tan(18.0));//tan(21.5778173));//tan(37.4));
+    m_VisionTargetReport.m_CameraDistance = (TARGET_SIZE * CAMERA_X_RES) /
+                                            (2.0 * (m_VisionTargetReport.m_BoundingRectWidth) * tan(CALIBRATED_CAMERA_ANGLE * RADIANS_TO_DEGREES));
 
     // ground_distance = sqrt((camera_reported_distance^2) - (84^2))
     // sin(camera_angle) = (height_from_ground) / (camera_reported_distance);
-    m_GroundDistance = sqrt((m_CameraDistance * m_CameraDistance) - (TARGET_REFLECTOR_HEIGHT * TARGET_REFLECTOR_HEIGHT));
+    m_VisionTargetReport.m_GroundDistance = sqrt((m_VisionTargetReport.m_CameraDistance * m_VisionTargetReport.m_CameraDistance) - (TARGET_REFLECTOR_HEIGHT * TARGET_REFLECTOR_HEIGHT));
 
-    m_BoundingArea = (m_TargetReport.m_BoundingRectRight-m_TargetReport.m_BoundingRectLeft)
-                   * (m_TargetReport.m_BoundingRectBottom-m_TargetReport.m_BoundingRectTop);
-    m_ShapeAreaPercent = (m_TargetReport.m_Area / m_BoundingArea) * DECIMAL_TO_PERCENT;
-    m_TrapezoidPercent = (m_TargetReport.m_ConvexHullArea / m_BoundingArea) * DECIMAL_TO_PERCENT;
+    m_VisionTargetReport.m_PercentAreaToImageArea = ( ? / m_VisionTargetReport.m_BoundingRectArea) * DECIMAL_TO_PERCENT;
+    m_VisionTargetReport.m_TrapezoidPercent = (m_TargetReport.m_ConvexHullArea / m_VisionTargetReport.m_BoundingRectArea) * DECIMAL_TO_PERCENT;
 
     // At a distance of 20 feet, the minimum area for the target is about 700 pxl^2
     // Our target range is 11-16 ft. so we will use this as our starting filtering point
-    if (((m_GroundDistance + GROUND_DISTANCE_TOLERANCE) >= TARGET_RANGE_MIN) && ((m_GroundDistance - GROUND_DISTANCE_TOLERANCE) <= TARGET_RANGE_MAX))
+    if (((m_VisionTargetReport.m_GroundDistance + GROUND_DISTANCE_TOLERANCE) >= TARGET_RANGE_MIN)
+        && ((m_VisionTargetReport.m_GroundDistance - GROUND_DISTANCE_TOLERANCE) <= TARGET_RANGE_MAX))
     {
         m_bTargetInRange = true;
     }
