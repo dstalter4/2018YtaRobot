@@ -30,7 +30,9 @@
 /// @class LogitechGamepad
 ///
 /// Class that provides methods for interacting with a Logitech
-/// Gamepad controller.  Derives from GenericHID.
+/// Gamepad controller.  Derives from GenericHID.  Inheriting
+/// from GamepadBase.h is deprecated, so GenericHID is used
+/// directly.
 ///
 ////////////////////////////////////////////////////////////////
 class LogitechGamepad : public GenericHID
@@ -40,8 +42,8 @@ public:
     explicit LogitechGamepad(int port);
     virtual ~LogitechGamepad() = default;
     
-    virtual double GetX(JoystickHand hand = kRightHand) const;
-    virtual double GetY(JoystickHand hand = kRightHand) const;
+    virtual double GetX(JoystickHand hand = kLeftHand) const override;
+    virtual double GetY(JoystickHand hand = kLeftHand) const override;
     
     double GetThrottle() const;
     

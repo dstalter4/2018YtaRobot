@@ -56,7 +56,7 @@ void YtaRobot::OperatorTestCode()
     // Sample code for testing the detect trigger change code
     TriggerChangeValues testValues;
     testValues.m_bCurrentValue = m_pControlJoystick->GetRawButton(10);
-    if ( DetectTriggerChange(&testValues) )
+    if ( testValues.DetectChange() )
     {
         printf("Trigger change detected!\n");
     }

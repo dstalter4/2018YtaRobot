@@ -14,6 +14,7 @@
 /// - dts   06-JAN-2018 Ported from 2017 and adopted to CTRE Phoenix.
 /// - dts   20-JAN-2018 Add support for Logitech Gamepad controllers.
 /// - dts   05-FEB-2018 Convert float -> double.
+/// - dts   15-FEB-2018 Support use of controllers via GenericHID.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -43,14 +44,17 @@
 ////////////////////////////////////////////////////////////////
 YtaRobot::YtaRobot()
 : m_pDriverStation                  (&DriverStation::GetInstance())
-, m_pDriveJoystick                  (new Joystick(DRIVE_JOYSTICK_PORT))
-, m_pControlJoystick                (new Joystick(CONTROL_JOYSTICK_PORT))
+, m_pDriveJoystick                  (nullptr)
+, m_pControlJoystick                (nullptr)
+, m_pDriveLogitechExtreme           (new Joystick(DRIVE_JOYSTICK_PORT))
+, m_pControlLogitechExtreme         (new Joystick(CONTROL_JOYSTICK_PORT))
 , m_pDriveLogitechGamepad           (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
 , m_pControlLogitechGamepad         (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
-, m_pGenericJoystick                (nullptr)
+, m_pDriveXboxGameSir               (new XboxController(DRIVE_JOYSTICK_PORT))
+, m_pControlXboxGameSir             (new XboxController(CONTROL_JOYSTICK_PORT))
 , m_pLeftDriveMotors                (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
 , m_pRightDriveMotors               (new TalonMotorGroup(NUMBER_OF_RIGHT_DRIVE_MOTORS, RIGHT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
-, m_pSideDriveMotors                (new TalonMotorGroup(NUMBER_OF_SIDE_DRIVE_MOTORS, SIDE_DRIVE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+//, m_pSideDriveMotors                (new TalonMotorGroup(NUMBER_OF_SIDE_DRIVE_MOTORS, SIDE_DRIVE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pIntakeArmsVerticalMotors       (new TalonMotorGroup(NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS, INTAKE_MOTORS_VERTICAL_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 //, m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
@@ -62,10 +66,11 @@ YtaRobot::YtaRobot()
 , m_pAutonomous2Switch              (new DigitalInput(AUTONOMOUS_2_SWITCH))
 , m_pAutonomous3Switch              (new DigitalInput(AUTONOMOUS_3_SWITCH))
 , m_pGyro                           (new AnalogGyro(ANALOG_GYRO_CHANNEL))
-, m_pSideDriveSolenoid              (new Solenoid(SIDE_DRIVE_SOLENOID_CHANNEL))
-, m_pHangRaisePoleSolenoid          (new Solenoid(HANG_RAISE_POLE_SOLENOID_CHANNEL))
-, m_pHangExtendPoleSolenoid         (new Solenoid(HANG_EXTEND_POLE_SOLENOID_CHANNEL))
-, m_pIntakeArmsHorizontalSolenoid   (new DoubleSolenoid(INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL, INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL))
+, m_pHangPoleRaiseLowerSolenoid     (new Solenoid(HANG_POLE_RAISE_LOWER_SOLENOID))
+, m_pHangPoleExtendRetractSolenoid  (new Solenoid(HANG_POLE_EXTEND_RETRACT_SOLENOID))
+, m_pIntakeArmsHorizontalSolenoid   (new DoubleSolenoid(INTAKE_HORIZONTAL_SOLENOID_FWD, INTAKE_HORIZONTAL_SOLENOID_REV))
+, m_pHangPoleRaiseLowerTrigger      (new TriggerChangeValues())
+, m_pHangPoleExtendRetractTrigger   (new TriggerChangeValues())
 , m_pAutonomousTimer                (new Timer())
 , m_pInchingDriveTimer              (new Timer())
 , m_pI2cTimer                       (new Timer())
@@ -86,21 +91,53 @@ YtaRobot::YtaRobot()
 {
     DisplayMessage("Robot constructor.");
     
-    // Set the controllers to the correct objects
+    // Set the driver input to the correct object
     switch (DRIVE_CONTROLLER_TYPE)
     {
         case LOGITECH_EXTREME:
         {
-            m_pGenericJoystick = m_pDriveJoystick;
+            m_pDriveJoystick = m_pDriveLogitechExtreme;
             break;
         }
         case LOGITECH_GAMEPAD:
         {
-            m_pGenericJoystick = m_pDriveLogitechGamepad;
+            m_pDriveJoystick = m_pDriveLogitechGamepad;
+            break;
+        }
+        case XBOX_GAMESIR:
+        {
+            m_pDriveJoystick = m_pDriveXboxGameSir;
             break;
         }
         default:
         {
+            // Deliberately crash - fix the configuration in the header and try again
+            ASSERT(false);
+            break;
+        }
+    }
+    
+    // Set the controller input to the correct object
+    switch (CONTROL_CONTROLLER_TYPE)
+    {
+        case LOGITECH_EXTREME:
+        {
+            m_pControlJoystick = m_pControlLogitechExtreme;
+            break;
+        }
+        case LOGITECH_GAMEPAD:
+        {
+            m_pControlJoystick = m_pControlLogitechGamepad;
+        }
+        case XBOX_GAMESIR:
+        {
+            m_pControlJoystick = m_pControlXboxGameSir;
+            break;
+        }
+        default:
+        {
+            // Deliberately crash - fix the configuration in the header and try again
+            ASSERT(false);
             break;
         }
     }
@@ -151,9 +188,8 @@ void YtaRobot::InitialStateSetup()
     m_pRightDriveMotors->TareEncoder();
     
     // Solenoids to off states
-    m_pSideDriveSolenoid->Set(false);
-    m_pHangRaisePoleSolenoid->Set(false);
-    m_pHangExtendPoleSolenoid->Set(false);
+    m_pHangPoleRaiseLowerSolenoid->Set(false);
+    m_pHangPoleExtendRetractSolenoid->Set(false);
     m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
     
     // Stop/clear any timers, just in case
@@ -199,7 +235,6 @@ void YtaRobot::OperatorControl()
     while ( m_pDriverStation->IsOperatorControl() && m_pDriverStation->IsEnabled() )
     {
         //CheckForDriveSwap();
-
         DriveControlSequence();
         //SideDriveSequence();
         
@@ -244,6 +279,7 @@ void YtaRobot::OperatorControl()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::CubeIntakeSequence()
 {
+    // Intake arm roller motors
     if (m_pControlJoystick->GetRawButton(INTAKE_FORWARD_BUTTON))
     {
         m_pIntakeMotors->Set(-INTAKE_MOTOR_SPEED);
@@ -257,7 +293,10 @@ void YtaRobot::CubeIntakeSequence()
         m_pIntakeMotors->Set(OFF);
     }
     
+    // Intake arms up/down control
     // Limit switches are normally closed, so motors are applied when Get() is true
+    // TODO: Fix this logic for applying direction if arms aren't at same height
+    // (Multi limit switch control, not single)
     if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_UP_BUTTON))
     {
         m_pIntakeArmsVerticalMotors->Set(INTAKE_ARM_MOTOR_SPEED);
@@ -308,20 +347,55 @@ void YtaRobot::LedSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SolenoidSequence()
 {
-    if (m_pControlJoystick->GetRawButton(SINGLE_SOLENOID_TOGGLE_BUTTON))
+    static bool bHangPoleRaised = false;
+    static bool bHangPoleExtended = false;
+    
+    // Get the status of the solenoid control buttons
+    m_pHangPoleRaiseLowerTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(HANG_POLE_RAISE_LOWER_BUTTON);
+    m_pHangPoleExtendRetractTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(HANG_POLE_EXTEND_RETRACT_BUTTON);
+    
+    // Look for a change to raise/lower the pole, which is only allowed
+    // to occur if the pole is not extended
+    if (m_pHangPoleRaiseLowerTrigger->DetectChange() && !bHangPoleExtended)
     {
-        m_pSideDriveSolenoid->Set(true);
-    }
-    else
-    {
-        m_pSideDriveSolenoid->Set(false);
+        // Raise the pole if it isn't already
+        if (!bHangPoleRaised)
+        {
+            m_pHangPoleRaiseLowerSolenoid->Set(true);
+        }
+        // Otherwise lower it
+        else
+        {
+            m_pHangPoleRaiseLowerSolenoid->Set(false);
+        }
+        
+        bHangPoleRaised = !bHangPoleRaised;
     }
     
-    if (m_pControlJoystick->GetRawButton(DOUBLE_SOLENOID_TOGGLE_ON_BUTTON))
+    // Look for a change to extend/retract the pole, which is only allowed
+    // to occur if the pole is already raised
+    if (m_pHangPoleExtendRetractTrigger->DetectChange() && bHangPoleRaised)
+    {
+        // Raise the pole if it isn't already
+        if (!bHangPoleExtended)
+        {
+            m_pHangPoleExtendRetractSolenoid->Set(true);
+        }
+        // Otherwise lower it
+        else
+        {
+            m_pHangPoleExtendRetractSolenoid->Set(false);
+        }
+        
+        bHangPoleExtended = !bHangPoleExtended;
+    }
+    
+    // Last check the intake amrs horizontal control
+    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_IN_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kForward);
     }
-    else if (m_pControlJoystick->GetRawButton(DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON))
+    else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_OUT_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
@@ -371,7 +445,7 @@ void YtaRobot::GyroSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SerialPortSequence()
 {
-/*
+    /*
     // Check for any incoming transmissions, limit it to our read buffer size
     int32_t bytesReceived = m_pSerialPort->GetBytesReceived();
     bytesReceived = (bytesReceived > SERIAL_PORT_BUFFER_SIZE_BYTES) ? SERIAL_PORT_BUFFER_SIZE_BYTES : bytesReceived;
@@ -401,7 +475,7 @@ void YtaRobot::SerialPortSequence()
         printf(m_SerialPortBuffer);
     }
     m_SerialPortBuffer[0] = NULL_CHARACTER;
-*/
+    */
 }
 
 
@@ -446,15 +520,15 @@ void YtaRobot::CameraSequence()
     }
     
     // Check for any camera toggling
-    m_pToggleCameraTrigger->m_bCurrentValue = m_pDriveLogitechGamepad->GetRawButton(CAMERA_TOGGLE_BUTTON);
-    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pDriveLogitechGamepad->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
+    m_pToggleCameraTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_BUTTON);
+    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
     
-    if (DetectTriggerChange(m_pToggleCameraTrigger))
+    if (m_pToggleCameraTrigger->DetectChange())
     {
         RobotCamera::ToggleCamera();
     }
     
-    if (DetectTriggerChange(m_pToggleCameraImageTrigger))
+    if (m_pToggleCameraImageTrigger->DetectChange())
     {
         RobotCamera::ToggleCameraProcessedImage();
     }
@@ -474,30 +548,36 @@ void YtaRobot::CameraSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DriveControlSequence()
 {
+    // Computes what the maximum drive speed could be.
+    // It's a little unfortunate we have to handle throttle this way,
+    // but GetThrottle is not a member of the GenericHID base class,
+    // so we can't use the generic objects since the v-table layout
+    // is not the same.  This means we have to manually get the throttle
+    // based on the driver input type.
     double throttleControl = 0.0;
-    double xAxisDrive = 0.0;
-    double yAxisDrive = 0.0;
-    if (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME)
+    switch (DRIVE_CONTROLLER_TYPE)
     {
-        // Computes what the maximum drive speed could be
-        throttleControl = GetThrottleControl(m_pDriveJoystick);
-        
-        // Get joystick X/Y inputs
-        xAxisDrive = m_pDriveJoystick->GetX();
-        yAxisDrive = m_pDriveJoystick->GetY();
+        case LOGITECH_EXTREME:
+        {
+            throttleControl = GetThrottleControl(m_pDriveLogitechExtreme);
+            break;
+        }
+        case LOGITECH_GAMEPAD:
+        {
+            throttleControl = GetThrottleControl(m_pDriveLogitechGamepad);
+            break;
+        }
+        default:
+        {
+            // Deliberately crash - fix the configuration in the header and try again
+            ASSERT(false);
+            break;
+        }
     }
-    else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
-    {
-        // Computes what the maximum drive speed could be
-        throttleControl = GetThrottleControl(m_pDriveLogitechGamepad);
-        
-        // Get gamepad X/Y inputs
-        xAxisDrive = m_pDriveLogitechGamepad->GetX();
-        yAxisDrive = m_pDriveLogitechGamepad->GetY();
-    }
-    else
-    {
-    }
+    
+    // Get driver X/Y inputs
+    double xAxisDrive = m_pDriveJoystick->GetX();
+    double yAxisDrive = m_pDriveJoystick->GetY();
     
     // Make sure axes inputs clear a certain threshold.  This will help to drive straight.
     xAxisDrive = Trim((xAxisDrive * throttleControl), JOYSTICK_TRIM_UPPER_LIMIT, JOYSTICK_TRIM_LOWER_LIMIT);
@@ -558,28 +638,12 @@ void YtaRobot::DriveControlSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SideDriveSequence()
 {
-    bool bSideDriveLeft = false;
-    bool bSideDriveRight = false;
-    if (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME)
-    {
-        bSideDriveLeft = m_pDriveJoystick->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
-        bSideDriveRight = m_pDriveJoystick->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
-
-    }
-    else if (DRIVE_CONTROLLER_TYPE == LOGITECH_GAMEPAD)
-    {
-        bSideDriveLeft = m_pDriveLogitechGamepad->GetRawButton(SIDE_DRIVE_LEFT_BUTTON);
-        bSideDriveRight = m_pDriveLogitechGamepad->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON);
-    }
-    else
-    {
-    }
-    
-    if (bSideDriveLeft)
+    /*
+    if (m_pDriveJoystick->GetRawButton(SIDE_DRIVE_LEFT_BUTTON))
     {
         m_pSideDriveMotors->Set(-SIDE_DRIVE_SPEED);
     }
-    else if (bSideDriveRight)
+    else if (m_pDriveJoystick->GetRawButton(SIDE_DRIVE_RIGHT_BUTTON))
     {
         m_pSideDriveMotors->Set(SIDE_DRIVE_SPEED);
     }
@@ -587,6 +651,7 @@ void YtaRobot::SideDriveSequence()
     {
         m_pSideDriveMotors->Set(OFF);
     }
+    */
 }
 
 

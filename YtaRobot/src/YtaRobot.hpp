@@ -16,6 +16,7 @@
 /// - dts   20-JAN-2018 Add support for Logitech Gamepad controllers.
 /// - dts   23-JAN-2018 Add support for printing to the RioLog.
 /// - dts   05-FEB-2018 Convert float -> double.
+/// - dts   15-FEB-2018 Add ASSERT macro and use of controllers via GenericHID.
 /// @endif
 ///
 /// Copyright (c) 2018 Youth Technology Academy
@@ -34,6 +35,21 @@
 // C++ INCLUDES
 #include "TalonMotorGroup.hpp"          // for Talon group motor control
 #include "LogitechGamepad.hpp"          // for Logitech controllers
+
+// MACROS
+#define ASSERT(condition)                                   \
+    do                                                      \
+    {                                                       \
+        if (!(condition))                                   \
+        {                                                   \
+            std::cout << "Robot code ASSERT!" << std::endl; \
+            std::cout << "File: " << __FILE__ << std::endl; \
+            std::cout << "Line: " << __LINE__ << std::endl; \
+            assert(false);                                  \
+        }                                                   \
+    }                                                       \
+    while (false);
+
 
 ////////////////////////////////////////////////////////////////
 /// @class YtaRobot
@@ -118,6 +134,9 @@ private:
     // STRUCTS
     struct TriggerChangeValues
     {
+        // Detect that a button has been pressed (rather than released)
+        inline bool DetectChange();
+        
         bool m_bCurrentValue;
         bool m_bOldValue;
     };
@@ -144,9 +163,6 @@ private:
     
     // Trims a number to be in between the upper and lower bounds
     inline double Trim( double num, double upper, double lower );
-
-    // Detect that a button has been pressed (rather than released)
-    inline bool DetectTriggerChange(TriggerChangeValues * pTriggerVals);
 
     // Function to check for drive control direction swap
     inline void CheckForDriveSwap();
@@ -230,16 +246,19 @@ private:
     
     // User Controls
     DriverStation *                 m_pDriverStation;                       // Driver station object for getting selections
-    Joystick *                      m_pDriveJoystick;                       // Drive control option 1
-    Joystick *                      m_pControlJoystick;                     // Robot functional control option 1
-    LogitechGamepad *               m_pDriveLogitechGamepad;                // Drive control option 2
-    LogitechGamepad *               m_pControlLogitechGamepad;              // Robot functional control option 2
-    GenericHID *                    m_pGenericJoystick;
+    GenericHID *                    m_pDriveJoystick;                       // Base class object for the driver operator
+    GenericHID *                    m_pControlJoystick;                     // Base class object for the controller operator
+    Joystick *                      m_pDriveLogitechExtreme;                // Option 1: Logitech Extreme can use the Joystick class
+    Joystick *                      m_pControlLogitechExtreme;              // Option 1: Logitech Extreme can use the Joystick class
+    LogitechGamepad *               m_pDriveLogitechGamepad;                // Option 2: Custom interface
+    LogitechGamepad *               m_pControlLogitechGamepad;              // Option 2: Custom interface
+    XboxController *                m_pDriveXboxGameSir;                    // Option 3: Xbox-based controller
+    XboxController *                m_pControlXboxGameSir;                  // Option 3: Xbox-based controller
     
     // Motors
     TalonMotorGroup *               m_pLeftDriveMotors;                     // Left drive motor control
     TalonMotorGroup *               m_pRightDriveMotors;                    // Right drive motor control
-    TalonMotorGroup *               m_pSideDriveMotors;                     // Side drive motor control
+    //TalonMotorGroup *               m_pSideDriveMotors;                     // Side drive motor control
     TalonMotorGroup *               m_pIntakeArmsVerticalMotors;            // Intake of the cube vertical control
     TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
     //TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
@@ -261,10 +280,11 @@ private:
     // Solenoids
     // Note: No compressor related objects required,
     // instantiating a solenoid gets that for us.
-    Solenoid *                      m_pSideDriveSolenoid;                   // Controls side drive up/down
-    Solenoid *                      m_pHangRaisePoleSolenoid;               // Lifts/lowers the pole from the robot body
-    Solenoid *                      m_pHangExtendPoleSolenoid;              // Extends to pole from the raised position
+    Solenoid *                      m_pHangPoleRaiseLowerSolenoid;          // Lifts/lowers the pole from the robot body
+    Solenoid *                      m_pHangPoleExtendRetractSolenoid;       // Extends/retracts the pole when in the raised position
     DoubleSolenoid *                m_pIntakeArmsHorizontalSolenoid;        // Controls horizontal movement of the intake arms
+    TriggerChangeValues *           m_pHangPoleRaiseLowerTrigger;
+    TriggerChangeValues *           m_pHangPoleExtendRetractTrigger;
     
     // Servos
     // (none)
@@ -322,22 +342,23 @@ private:
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
 
     // Driver buttons
-    static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  5;
-    static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  6;
-    static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  7;
-    static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  8;
-    static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = 13;
-    static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = 14;
+    static const int                HANG_POLE_RAISE_LOWER_BUTTON            = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  1;
+    static const int                HANG_POLE_EXTEND_RETRACT_BUTTON         = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  3;
+    static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  5;
+    static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
+    static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  7;
+    static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  8;
+    static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
+    static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 : 10;
     
     // Control buttons
-    static const int                DOUBLE_SOLENOID_TOGGLE_ON_BUTTON        = 1;
-    static const int                DOUBLE_SOLENOID_TOGGLE_OFF_BUTTON       = 2;
-    static const int                INTAKE_FORWARD_BUTTON                   = 3;
-    static const int                INTAKE_REVERSE_BUTTON                   = 4;
-    static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = 5;
-    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = 6;
-    static const int                SINGLE_SOLENOID_TOGGLE_BUTTON           = 7;
-    static const int                ESTOP_BUTTON                            = 14;
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
+    static const int                INTAKE_ARMS_HORIZONTAL_OUT_BUTTON       = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
+    static const int                INTAKE_FORWARD_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  3;
+    static const int                INTAKE_REVERSE_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  4;
+    static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  5;
+    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  6;
+    static const int                ESTOP_BUTTON                            = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 :  8;
 
     // CAN Signals
     static const int                LEFT_MOTORS_CAN_START_ID                = 1;
@@ -365,11 +386,10 @@ private:
     static const int                ANALOG_GYRO_CHANNEL                     = 0;
     
     // Solenoid Signals
-    static const int                INTAKE_HORIZONTAL_SOLENOID_FWD_CHANNEL  = 0;
-    static const int                INTAKE_HORIZONTAL_SOLENOID_REV_CHANNEL  = 1;
-    static const int                HANG_RAISE_POLE_SOLENOID_CHANNEL        = 2;
-    static const int                HANG_EXTEND_POLE_SOLENOID_CHANNEL       = 3;
-    static const int                SIDE_DRIVE_SOLENOID_CHANNEL             = 4;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_FWD          = 0;
+    static const int                INTAKE_HORIZONTAL_SOLENOID_REV          = 1;
+    static const int                HANG_POLE_RAISE_LOWER_SOLENOID          = 2;
+    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID       = 3;
     
     // Misc
     static const int                OFF                                     = 0;
@@ -588,7 +608,7 @@ inline double YtaRobot::Trim( double num, double upper, double lower )
 
 
 ////////////////////////////////////////////////////////////////
-/// @method YtaRobot::DetectTriggerChange
+/// @method YtaRobot::TriggerChangeValues::DetectChange
 ///
 /// This method is used to check if a button has undergone a
 /// state change.  The same button can be used to reverse state
@@ -605,20 +625,20 @@ inline double YtaRobot::Trim( double num, double upper, double lower )
 /// 'if' statements for logic control.
 ///
 ////////////////////////////////////////////////////////////////
-inline bool YtaRobot::DetectTriggerChange(TriggerChangeValues * pTriggerVals)
+inline bool YtaRobot::TriggerChangeValues::DetectChange()
 {
     // Only report a change if the current value is different than the old value
     // Also make sure the transition is to being pressed since we are detecting
     // presses and not releases
-    if ( (pTriggerVals->m_bCurrentValue != pTriggerVals->m_bOldValue) && pTriggerVals->m_bCurrentValue )
+    if ( (this->m_bCurrentValue != this->m_bOldValue) && this->m_bCurrentValue )
     {
         // Update the old value, return the button was pressed
-        pTriggerVals->m_bOldValue = pTriggerVals->m_bCurrentValue;
+        this->m_bOldValue = this->m_bCurrentValue;
         return true;
     }
     
     // Otherwise update the old value
-    pTriggerVals->m_bOldValue = pTriggerVals->m_bCurrentValue;
+    this->m_bOldValue = this->m_bCurrentValue;
     return false;
 }
 
