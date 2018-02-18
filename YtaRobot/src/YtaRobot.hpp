@@ -34,7 +34,7 @@
 
 // C++ INCLUDES
 #include "TalonMotorGroup.hpp"          // for Talon group motor control
-#include "LogitechGamepad.hpp"          // for Logitech controllers
+#include "YtaController.hpp"            // for custom controller interaction
 
 // MACROS
 #define ASSERT(condition)                                   \
@@ -91,11 +91,13 @@ private:
 
     // TYPEDEFS
     typedef DriverStation::Alliance Alliance;
+    typedef GenericHID::JoystickHand JoystickHand;
     typedef TalonMotorGroup::MotorGroupControlMode MotorGroupControlMode;
     
     // ENUMS
     enum ControllerType
     {
+        CUSTOM_CONTROLLER,
         LOGITECH_EXTREME,
         LOGITECH_GAMEPAD,
         XBOX_GAMESIR
@@ -169,13 +171,13 @@ private:
     
     // Get a throttle control value from a joystick
     inline double GetThrottleControl(Joystick * pJoystick);
-    inline double GetThrottleControl(LogitechGamepad * pGamepad);
+    inline double GetThrottleControl(YtaController * pController);
 
     // Grabs a value from a sonar sensor individually
     inline double GetSonarSensorValue(Ultrasonic * pSensor);
    
     // Get a reading from the gyro sensor
-    inline double GetGyroAngle(AnalogGyro * pSensor);
+    inline double GetGyroValue(AnalogGyro * pSensor);
     
     // Convert a distance in inches to encoder turns
     int GetEncoderRotationsFromInches(int inches, double diameter, bool bUseQuadEncoding = true);
@@ -248,12 +250,12 @@ private:
     DriverStation *                 m_pDriverStation;                       // Driver station object for getting selections
     GenericHID *                    m_pDriveJoystick;                       // Base class object for the driver operator
     GenericHID *                    m_pControlJoystick;                     // Base class object for the controller operator
-    Joystick *                      m_pDriveLogitechExtreme;                // Option 1: Logitech Extreme can use the Joystick class
-    Joystick *                      m_pControlLogitechExtreme;              // Option 1: Logitech Extreme can use the Joystick class
-    LogitechGamepad *               m_pDriveLogitechGamepad;                // Option 2: Custom interface
-    LogitechGamepad *               m_pControlLogitechGamepad;              // Option 2: Custom interface
-    XboxController *                m_pDriveXboxGameSir;                    // Option 3: Xbox-based controller
-    XboxController *                m_pControlXboxGameSir;                  // Option 3: Xbox-based controller
+    YtaController *                 m_pDriveCustomController;               // Option 1: Custom interface
+    YtaController *                 m_pControlCustomController;             // Option 1: Custom interface
+    Joystick *                      m_pDriveLogitechExtreme;                // Option 2: Logitech Extreme can use the Joystick class
+    Joystick *                      m_pControlLogitechExtreme;              // Option 2: Logitech Extreme can use the Joystick class
+    XboxController *                m_pDriveXboxGameSir;                    // Option 3: Xbox-based controller (also works for Logitech Gamepad)
+    XboxController *                m_pControlXboxGameSir;                  // Option 3: Xbox-based controller (also works for Logitech Gamepad)
     
     // Motors
     TalonMotorGroup *               m_pLeftDriveMotors;                     // Left drive motor control
@@ -275,14 +277,14 @@ private:
     DigitalInput *                  m_pAutonomous3Switch;                   // Switch to select autonomous routine 3
     
     // Analog I/O
-    AnalogGyro *                    m_pGyro;
+    // (none)
     
     // Solenoids
     // Note: No compressor related objects required,
     // instantiating a solenoid gets that for us.
-    Solenoid *                      m_pHangPoleRaiseLowerSolenoid;          // Lifts/lowers the pole from the robot body
-    Solenoid *                      m_pHangPoleExtendRetractSolenoid;       // Extends/retracts the pole when in the raised position
     DoubleSolenoid *                m_pIntakeArmsHorizontalSolenoid;        // Controls horizontal movement of the intake arms
+    DoubleSolenoid *                m_pHangPoleRaiseLowerSolenoid;          // Lifts/lowers the pole from the robot body
+    DoubleSolenoid *                m_pHangPoleExtendRetractSolenoid;       // Extends/retracts the pole when in the raised position
     TriggerChangeValues *           m_pHangPoleRaiseLowerTrigger;
     TriggerChangeValues *           m_pHangPoleExtendRetractTrigger;
     
@@ -301,6 +303,9 @@ private:
     
     // Accelerometer
     BuiltInAccelerometer *          m_pAccelerometer;                       // Built in roborio accelerometer
+    
+    // Gyro
+    ADXRS450_Gyro *                 m_pGyro;
 
     // Camera
     // Note: Only need to have a thread here and tie it to
@@ -335,8 +340,8 @@ private:
     // CONSTS
     
     // Joysticks/Buttons
-    static const ControllerType     DRIVE_CONTROLLER_TYPE                   = LOGITECH_GAMEPAD;
-    static const ControllerType     CONTROL_CONTROLLER_TYPE                 = XBOX_GAMESIR;
+    static const ControllerType     DRIVE_CONTROLLER_TYPE                   = CUSTOM_CONTROLLER;
+    static const ControllerType     CONTROL_CONTROLLER_TYPE                 = CUSTOM_CONTROLLER;
     
     static const int                DRIVE_JOYSTICK_PORT                     = 0;
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
@@ -348,10 +353,14 @@ private:
     static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
     static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  7;
     static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  8;
-    static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
-    static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 : 10;
+    static const int                CAMERA_DISABLE_IMAGE_PROCESSING_BUTTON  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
+    static const int                CAMERA_ENABLE_IMAGE_PROCESSING_BUTTON   = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 : 10;
+    static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 15 : 11;
+    static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 16 : 12;
     
     // Control buttons
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MIN = 160;
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MAX = 200;
     static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
     static const int                INTAKE_ARMS_HORIZONTAL_OUT_BUTTON       = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
     static const int                INTAKE_FORWARD_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  3;
@@ -383,13 +392,15 @@ private:
     static const int                AUTONOMOUS_3_SWITCH                     = 9;
     
     // Analog I/O Signals
-    static const int                ANALOG_GYRO_CHANNEL                     = 0;
+    // (none)
     
     // Solenoid Signals
     static const int                INTAKE_HORIZONTAL_SOLENOID_FWD          = 0;
     static const int                INTAKE_HORIZONTAL_SOLENOID_REV          = 1;
-    static const int                HANG_POLE_RAISE_LOWER_SOLENOID          = 2;
-    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID       = 3;
+    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_FWD      = 2;
+    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_REV      = 3;
+    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_FWD   = 4;
+    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_REV   = 5;
     
     // Misc
     static const int                OFF                                     = 0;
@@ -426,7 +437,7 @@ private:
     static constexpr double         INCHING_DRIVE_SPEED                     =  0.25;
     static constexpr double         INCHING_DRIVE_DELAY_S                   =  0.10;
     static constexpr double         INTAKE_MOTOR_SPEED                      =  1.00;
-    static constexpr double         INTAKE_ARM_MOTOR_SPEED                  =  0.20;
+    static constexpr double         INTAKE_ARM_MOTOR_SPEED                  =  0.30;
     
     static constexpr double         CAMERA_RUN_INTERVAL_S                   =  1.00;
     static constexpr double         I2C_RUN_INTERVAL_S                      =  0.10;
@@ -498,27 +509,33 @@ inline double YtaRobot::GetThrottleControl(Joystick * pJoystick)
 /// Gamepad controller.
 ///
 ////////////////////////////////////////////////////////////////
-inline double YtaRobot::GetThrottleControl(LogitechGamepad * pGamepad)
+inline double YtaRobot::GetThrottleControl(YtaController * pController)
 {
     // Gamepad throttle already comes back between 0 and +1, so no need to normalize.
-    return (pGamepad->GetThrottle() * DRIVE_THROTTLE_VALUE_RANGE) + DRIVE_THROTTLE_VALUE_BASE;
+    return (pController->GetThrottle() * DRIVE_THROTTLE_VALUE_RANGE) + DRIVE_THROTTLE_VALUE_BASE;
 }
 
 
 
 ////////////////////////////////////////////////////////////////
-/// @method YtaRobot::GetGyroAngle
+/// @method YtaRobot::GetGyroValue
 ///
-/// This method is used to get a value from an analog gyro sensor.
+/// This method is used to get a value from an analog gyro
+/// sensor.  If an analog gyro object is passed in, that object
+/// will be used; otherwise the reading is obtained from the SPI
+/// port Analog Device gyro board.
 ///
 ////////////////////////////////////////////////////////////////
-inline double YtaRobot::GetGyroAngle(AnalogGyro * pSensor)
+inline double YtaRobot::GetGyroValue(AnalogGyro * pSensor)
 {
-    return 0.0;
-    
-    /*
-    return pSensor->GetAngle();
-    */
+    if (pSensor != nullptr)
+    {
+        return pSensor->GetAngle();
+    }
+    else
+    {
+        return m_pGyro->GetAngle();
+    }
 }
 
 

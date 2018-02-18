@@ -1,9 +1,10 @@
 ////////////////////////////////////////////////////////////////////////////////
-/// @file   LogitechGamepad.hpp
+/// @file   YtaController.hpp
 /// @author David Stalter
 ///
 /// @details
-/// A class designed to interface to a Logitech Gamepad controller.
+/// A class designed to interface to several controller types (Logitech Gamepad,
+/// Xbox GameSir) with custom responses.
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   19-JAN-2018 Created.
@@ -13,8 +14,8 @@
 /// Copyright (c) 2018 Youth Technology Academy
 ////////////////////////////////////////////////////////////////////////////////
 
-#ifndef LOGITECHGAMEPADCONTROLLER_HPP
-#define LOGITECHGAMEPADCONTROLLER_HPP
+#ifndef YTACONTROLLER_HPP
+#define YTACONTROLLER_HPP
 
 // SYSTEM INCLUDES
 // <none>
@@ -27,7 +28,7 @@
 
 
 ////////////////////////////////////////////////////////////////
-/// @class LogitechGamepad
+/// @class YtaController
 ///
 /// Class that provides methods for interacting with a Logitech
 /// Gamepad controller.  Derives from GenericHID.  Inheriting
@@ -35,12 +36,12 @@
 /// directly.
 ///
 ////////////////////////////////////////////////////////////////
-class LogitechGamepad : public GenericHID
+class YtaController : public GenericHID
 {
 public:
     
-    explicit LogitechGamepad(int port);
-    virtual ~LogitechGamepad() = default;
+    explicit YtaController(int port);
+    virtual ~YtaController() = default;
     
     virtual double GetX(JoystickHand hand = kLeftHand) const override;
     virtual double GetY(JoystickHand hand = kLeftHand) const override;
@@ -76,11 +77,11 @@ private:
     double m_ThrottleValue;
     
     static constexpr double X_AXIS_SENSITIVITY_SCALING = 0.30;
-    static constexpr double Y_AXIS_SENSITIVITY_SCALING = 0.60;
+    static constexpr double Y_AXIS_SENSITIVITY_SCALING = 0.80;
     
     // Prevent copying/assignment
-    LogitechGamepad(const LogitechGamepad&) = delete;
-    LogitechGamepad& operator=(const LogitechGamepad&) = delete;
+    YtaController(const YtaController&) = delete;
+    YtaController& operator=(const YtaController&) = delete;
 };
 
-#endif // LOGITECHGAMEPADCONTROLLER_HPP
+#endif // YTACONTROLLER_HPP

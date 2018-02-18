@@ -108,7 +108,8 @@ private:
 
         double m_PercentAreaToImageArea;    // Percentage of the area the contour occupies
         double m_TrapezoidPercent;          // Likelihood that this is a true rectangle
-        double m_CameraDistance;            // Distance to the target from the camera
+        double m_CameraDistanceX;           // Distance to the target from the camera, measured by width
+        double m_CameraDistanceY;           // Distance to the target from the camera, measured by height
         double m_GroundDistance;            // Actual ground distance to the target
         bool   m_bTargetInRange;            // Remember the last result from full vision processing
         bool   m_bIsValid;                  // Indicates if the current report is valid
@@ -128,7 +129,7 @@ private:
     static cv::Mat                              m_ErodeOutputMat;                   // Erode output mat
     static cv::Mat                              m_ContoursMat;                      // Contours output mat
     static cv::Mat                              m_FilteredContoursMat;              // Filtered contours output mat
-    static cv::Mat                              m_OutputMat;                        // The final output mat for displaying an (optionally) processed image
+    static cv::Mat                              m_VisionTargetMat;                  // The best candidate vision target mat
     static cv::Mat *                            m_pDashboardMat;                    // Pointer to which mat should currently be sent to the dashboard
     
     // Image artifacts represented by std::vector
@@ -150,15 +151,18 @@ private:
     static const int                            CAMERA_X_RES                        = 640;
     static const int                            CAMERA_Y_RES                        = 480;
     
+    static constexpr double                     TARGET_WIDTH_INCHES                 =  2.0;
+    static constexpr double                     TARGET_HEIGHT_INCHES                = 16.0;
+    static constexpr double                     TARGET_HEIGHT_FROM_GROUND           =  2.0;
     //static constexpr double                     TARGET_MIN_AREA_PERCENT             = 0.0;
     //static constexpr double                     TARGET_MAX_AREA_PERCENT             = 100.0;
-    //static constexpr double                     TARGET_SIZE                         = 20.0;
-    //static constexpr double                     TARGET_REFLECTOR_HEIGHT             = 84.0;
     //static constexpr double                     TARGET_RANGE_MIN                    = 132.0;
     //static constexpr double                     TARGET_RANGE_MAX                    = 192.0;
     //static constexpr double                     GROUND_DISTANCE_TOLERANCE           = 6.0;
-    //static constexpr double                     CALIBRATED_CAMERA_ANGLE             = 21.5778173;
-    static constexpr double                     RADIANS_TO_DEGREES                  = M_PI / 180.0;
+    static constexpr double                     CAMERA_FOV_DEGREES                  = 50.0;
+    static constexpr double                     CAMERA_DIAGONAL_FOV_DEGREES         = 78.0;
+    static constexpr double                     CALIBRATED_CAMERA_ANGLE             = 21.5778173;
+    static constexpr double                     DEGREES_TO_RADIANS                  = M_PI / 180.0;
     static constexpr double                     DECIMAL_TO_PERCENT                  = 100.0;
 };
 
@@ -174,6 +178,13 @@ private:
 inline void RobotCamera::SetFullProcessing(bool bState)
 {
     m_bDoFullProcessing = bState;
+    
+    if (!m_bDoFullProcessing)
+    {
+        // If processing was previously enabled,
+        // need to switch back to the default mat.
+        m_pDashboardMat = &m_SourceMat;
+    }
 }
 
 
