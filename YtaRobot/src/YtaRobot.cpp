@@ -46,10 +46,10 @@ YtaRobot::YtaRobot()
 : m_pDriverStation                  (&DriverStation::GetInstance())
 , m_pDriveJoystick                  (nullptr)
 , m_pControlJoystick                (nullptr)
+, m_pDriveCustomController          (new YtaController(DRIVE_JOYSTICK_PORT))
+, m_pControlCustomController        (new YtaController(CONTROL_JOYSTICK_PORT))
 , m_pDriveLogitechExtreme           (new Joystick(DRIVE_JOYSTICK_PORT))
 , m_pControlLogitechExtreme         (new Joystick(CONTROL_JOYSTICK_PORT))
-, m_pDriveLogitechGamepad           (new LogitechGamepad(DRIVE_JOYSTICK_PORT))
-, m_pControlLogitechGamepad         (new LogitechGamepad(CONTROL_JOYSTICK_PORT))
 , m_pDriveXboxGameSir               (new XboxController(DRIVE_JOYSTICK_PORT))
 , m_pControlXboxGameSir             (new XboxController(CONTROL_JOYSTICK_PORT))
 , m_pLeftDriveMotors                (new TalonMotorGroup(NUMBER_OF_LEFT_DRIVE_MOTORS, LEFT_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::CTRE_MagEncoder_Relative))
@@ -65,10 +65,9 @@ YtaRobot::YtaRobot()
 , m_pAutonomous1Switch              (new DigitalInput(AUTONOMOUS_1_SWITCH))
 , m_pAutonomous2Switch              (new DigitalInput(AUTONOMOUS_2_SWITCH))
 , m_pAutonomous3Switch              (new DigitalInput(AUTONOMOUS_3_SWITCH))
-, m_pGyro                           (new AnalogGyro(ANALOG_GYRO_CHANNEL))
-, m_pHangPoleRaiseLowerSolenoid     (new Solenoid(HANG_POLE_RAISE_LOWER_SOLENOID))
-, m_pHangPoleExtendRetractSolenoid  (new Solenoid(HANG_POLE_EXTEND_RETRACT_SOLENOID))
 , m_pIntakeArmsHorizontalSolenoid   (new DoubleSolenoid(INTAKE_HORIZONTAL_SOLENOID_FWD, INTAKE_HORIZONTAL_SOLENOID_REV))
+, m_pHangPoleRaiseLowerSolenoid     (new DoubleSolenoid(HANG_POLE_RAISE_LOWER_SOLENOID_FWD, HANG_POLE_RAISE_LOWER_SOLENOID_REV))
+, m_pHangPoleExtendRetractSolenoid  (new DoubleSolenoid(HANG_POLE_EXTEND_RETRACT_SOLENOID_FWD, HANG_POLE_EXTEND_RETRACT_SOLENOID_REV))
 , m_pHangPoleRaiseLowerTrigger      (new TriggerChangeValues())
 , m_pHangPoleExtendRetractTrigger   (new TriggerChangeValues())
 , m_pAutonomousTimer                (new Timer())
@@ -77,6 +76,7 @@ YtaRobot::YtaRobot()
 , m_pCameraRunTimer                 (new Timer())
 , m_pSafetyTimer                    (new Timer())
 , m_pAccelerometer                  (new BuiltInAccelerometer)
+, m_pGyro                           (new ADXRS450_Gyro())
 , m_CameraThread                    (RobotCamera::VisionThread)
 , m_pToggleCameraTrigger            (new TriggerChangeValues())
 , m_pToggleCameraImageTrigger       (new TriggerChangeValues())
@@ -94,16 +94,17 @@ YtaRobot::YtaRobot()
     // Set the driver input to the correct object
     switch (DRIVE_CONTROLLER_TYPE)
     {
+        case CUSTOM_CONTROLLER:
+        {
+            m_pDriveJoystick = m_pDriveCustomController;
+            break;
+        }
         case LOGITECH_EXTREME:
         {
             m_pDriveJoystick = m_pDriveLogitechExtreme;
             break;
         }
         case LOGITECH_GAMEPAD:
-        {
-            m_pDriveJoystick = m_pDriveLogitechGamepad;
-            break;
-        }
         case XBOX_GAMESIR:
         {
             m_pDriveJoystick = m_pDriveXboxGameSir;
@@ -120,15 +121,17 @@ YtaRobot::YtaRobot()
     // Set the controller input to the correct object
     switch (CONTROL_CONTROLLER_TYPE)
     {
+        case CUSTOM_CONTROLLER:
+        {
+            m_pControlJoystick = m_pControlCustomController;
+            break;
+        }
         case LOGITECH_EXTREME:
         {
             m_pControlJoystick = m_pControlLogitechExtreme;
             break;
         }
         case LOGITECH_GAMEPAD:
-        {
-            m_pControlJoystick = m_pControlLogitechGamepad;
-        }
         case XBOX_GAMESIR:
         {
             m_pControlJoystick = m_pControlXboxGameSir;
@@ -188,8 +191,8 @@ void YtaRobot::InitialStateSetup()
     m_pRightDriveMotors->TareEncoder();
     
     // Solenoids to off states
-    m_pHangPoleRaiseLowerSolenoid->Set(false);
-    m_pHangPoleExtendRetractSolenoid->Set(false);
+    m_pHangPoleRaiseLowerSolenoid->Set(DoubleSolenoid::kOff);
+    m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kOff);
     m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
     
     // Stop/clear any timers, just in case
@@ -228,8 +231,8 @@ void YtaRobot::OperatorControl()
     // just in case clear everything.
     InitialStateSetup();
     
-    // Tele-op won't do detailed processing of the images
-    RobotCamera::SetFullProcessing(true);
+    // Tele-op won't do detailed processing of the images unless instructed to
+    RobotCamera::SetFullProcessing(false);
     
     // Main tele op loop
     while ( m_pDriverStation->IsOperatorControl() && m_pDriverStation->IsEnabled() )
@@ -301,9 +304,8 @@ void YtaRobot::CubeIntakeSequence()
     {
         m_pIntakeArmsVerticalMotors->Set(INTAKE_ARM_MOTOR_SPEED);
     }
-    else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_DOWN_BUTTON))
-             //&& m_pLeftArmLowerLimitSwitch->Get()
-             //&& m_pRightArmLowerLimitSwitch->Get())
+    else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_DOWN_BUTTON)
+             && (m_pLeftArmLowerLimitSwitch->Get() || m_pRightArmLowerLimitSwitch->Get()))
     {
         m_pIntakeArmsVerticalMotors->Set(-INTAKE_ARM_MOTOR_SPEED);
     }
@@ -361,12 +363,12 @@ void YtaRobot::SolenoidSequence()
         // Raise the pole if it isn't already
         if (!bHangPoleRaised)
         {
-            m_pHangPoleRaiseLowerSolenoid->Set(true);
+            m_pHangPoleRaiseLowerSolenoid->Set(DoubleSolenoid::kForward);
         }
         // Otherwise lower it
         else
         {
-            m_pHangPoleRaiseLowerSolenoid->Set(false);
+            m_pHangPoleRaiseLowerSolenoid->Set(DoubleSolenoid::kReverse);
         }
         
         bHangPoleRaised = !bHangPoleRaised;
@@ -379,29 +381,34 @@ void YtaRobot::SolenoidSequence()
         // Raise the pole if it isn't already
         if (!bHangPoleExtended)
         {
-            m_pHangPoleExtendRetractSolenoid->Set(true);
+            m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kForward);
         }
         // Otherwise lower it
         else
         {
-            m_pHangPoleExtendRetractSolenoid->Set(false);
+            m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kReverse);
         }
         
         bHangPoleExtended = !bHangPoleExtended;
     }
     
-    // Last check the intake amrs horizontal control
-    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_IN_BUTTON))
+    // Last check the intake arms horizontal control
+    int povValue = m_pControlJoystick->GetPOV();
+    if ((povValue > INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MIN) && (povValue < INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MAX))
+    //if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_IN_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kForward);
     }
+    /*
     else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_OUT_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
+    */
     else
     {
-        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
+        //m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
+        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
 }
 
@@ -519,13 +526,27 @@ void YtaRobot::CameraSequence()
         m_pCameraRunTimer->Reset();
     }
     
+    // Look for full processing to be enabled/disabled
+    if (m_pDriveJoystick->GetRawButton(CAMERA_ENABLE_IMAGE_PROCESSING_BUTTON))
+    {
+        RobotCamera::SetFullProcessing(true);
+    }
+    else if (m_pDriveJoystick->GetRawButton(CAMERA_DISABLE_IMAGE_PROCESSING_BUTTON))
+    {
+        RobotCamera::SetFullProcessing(false);
+    }
+    else
+    {
+    }
+    
     // Check for any camera toggling
     m_pToggleCameraTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_BUTTON);
     m_pToggleCameraImageTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
     
     if (m_pToggleCameraTrigger->DetectChange())
     {
-        RobotCamera::ToggleCamera();
+        // 2018: Only one camera, no need to toggle
+        //RobotCamera::ToggleCamera();
     }
     
     if (m_pToggleCameraImageTrigger->DetectChange())
@@ -548,6 +569,8 @@ void YtaRobot::CameraSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DriveControlSequence()
 {
+    SmartDashboard::PutNumber("Gyro angle", GetGyroValue(nullptr));
+    
     // Computes what the maximum drive speed could be.
     // It's a little unfortunate we have to handle throttle this way,
     // but GetThrottle is not a member of the GenericHID base class,
@@ -557,14 +580,21 @@ void YtaRobot::DriveControlSequence()
     double throttleControl = 0.0;
     switch (DRIVE_CONTROLLER_TYPE)
     {
+        case CUSTOM_CONTROLLER:
+        {
+            throttleControl = GetThrottleControl(m_pDriveCustomController);
+            break;
+        }
         case LOGITECH_EXTREME:
         {
             throttleControl = GetThrottleControl(m_pDriveLogitechExtreme);
             break;
         }
         case LOGITECH_GAMEPAD:
+        case XBOX_GAMESIR:
         {
-            throttleControl = GetThrottleControl(m_pDriveLogitechGamepad);
+            // Xbox controllers have no GetThrottle method, default to max
+            throttleControl = 1.0;
             break;
         }
         default:

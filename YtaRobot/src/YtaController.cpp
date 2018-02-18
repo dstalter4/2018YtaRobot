@@ -1,9 +1,10 @@
 ////////////////////////////////////////////////////////////////////////////////
-/// @file   LogitechGamepad.cpp
+/// @file   YtaController.cpp
 /// @author David Stalter
 ///
 /// @details
-/// A class designed to interface to a Logitech Gamepad controller.
+/// A class designed to interface to several controller types (Logitech Gamepad,
+/// Xbox GameSir) with custom responses.
 ///
 /// @if INCLUDE_EDIT_HISTORY
 /// - dts   19-JAN-2018 Created.
@@ -20,7 +21,7 @@
 // (none)
 
 // C++ INCLUDES
-#include "LogitechGamepad.hpp"      // For class declaration
+#include "YtaController.hpp"        // For class declaration
 
 // STATIC MEMBER DATA
 // (none)
@@ -28,12 +29,12 @@
 
 
 ////////////////////////////////////////////////////////////////
-/// @method LogitechGamepad::LogitechGamepad
+/// @method YtaController::YtaController
 ///
 /// Constructor.
 ///
 ////////////////////////////////////////////////////////////////
-LogitechGamepad::LogitechGamepad(int port)
+YtaController::YtaController(int port)
 : GenericHID(port)
 , m_ThrottleValue(0.0)
 {
@@ -42,13 +43,13 @@ LogitechGamepad::LogitechGamepad(int port)
 
 
 ////////////////////////////////////////////////////////////////
-/// @method LogitechGamepad::GetX
+/// @method YtaController::GetX
 ///
 /// Returns x-axis input.  This method is pure virtual in the
 /// base class and must be implemented.
 ///
 ////////////////////////////////////////////////////////////////
-double LogitechGamepad::GetX(JoystickHand hand) const
+double YtaController::GetX(JoystickHand hand) const
 {
     // x-axis controls are very sensitive on this
     // controller, so scale them back.
@@ -58,13 +59,13 @@ double LogitechGamepad::GetX(JoystickHand hand) const
 
 
 ////////////////////////////////////////////////////////////////
-/// @method LogitechGamepad::GetY
+/// @method YtaController::GetY
 ///
 /// Returns y-axis input.  This method is pure virtual in the
 /// base class and must be implemented.
 ///
 ////////////////////////////////////////////////////////////////
-double LogitechGamepad::GetY(JoystickHand hand) const
+double YtaController::GetY(JoystickHand hand) const
 {
     // In order to keep the drive logic the same as the
     // joysticks, full forward is represented by -1 and
@@ -85,7 +86,7 @@ double LogitechGamepad::GetY(JoystickHand hand) const
 
 
 ////////////////////////////////////////////////////////////////
-/// @method LogitechGamepad::GetThrottle
+/// @method YtaController::GetThrottle
 ///
 /// Returns throttle control.  The Logitech Gamepad does not
 /// have an axis that retains its position when not being
@@ -93,7 +94,7 @@ double LogitechGamepad::GetY(JoystickHand hand) const
 /// be implemented and remembered in software.
 ///
 ////////////////////////////////////////////////////////////////
-double LogitechGamepad::GetThrottle() const
+double YtaController::GetThrottle() const
 {
     // Not implemented yet
     return 1.0;
