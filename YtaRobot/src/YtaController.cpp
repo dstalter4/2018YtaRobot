@@ -88,10 +88,10 @@ double YtaController::GetY(JoystickHand hand) const
 ////////////////////////////////////////////////////////////////
 /// @method YtaController::GetThrottle
 ///
-/// Returns throttle control.  The Logitech Gamepad does not
-/// have an axis that retains its position when not being
-/// controlled by the user.  This requires throttle control to
-/// be implemented and remembered in software.
+/// Returns throttle control.  Most controllers do not have an
+/// axis that retains its position when not being manipulated by
+/// the user.  This requires throttle control to be implemented
+/// and remembered in software.
 ///
 ////////////////////////////////////////////////////////////////
 double YtaController::GetThrottle() const

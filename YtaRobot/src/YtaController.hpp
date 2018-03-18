@@ -50,6 +50,11 @@ public:
     
 private:
     
+    // Joystick axes inputs are:
+    //    -1
+    // -1   +1
+    //    +1
+    
     enum RawAxes
     {
         LEFT_X_AXIS         = 0,
@@ -76,7 +81,7 @@ private:
     
     double m_ThrottleValue;
     
-    static constexpr double X_AXIS_SENSITIVITY_SCALING = 0.30;
+    static constexpr double X_AXIS_SENSITIVITY_SCALING = 0.60;
     static constexpr double Y_AXIS_SENSITIVITY_SCALING = 0.80;
     
     // Prevent copying/assignment

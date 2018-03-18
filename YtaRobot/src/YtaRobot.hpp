@@ -263,7 +263,7 @@ private:
     //TalonMotorGroup *               m_pSideDriveMotors;                     // Side drive motor control
     TalonMotorGroup *               m_pIntakeArmsVerticalMotors;            // Intake of the cube vertical control
     TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
-    //TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
+    TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
     //TalonMotorGroup *               m_pShooterMotors;                       // Shooting of the cube
     
     // Spike Relays
@@ -272,6 +272,10 @@ private:
     // Digital I/O
     DigitalInput *                  m_pLeftArmLowerLimitSwitch;             // Left arm lower limit switch
     DigitalInput *                  m_pRightArmLowerLimitSwitch;            // Right arm lower limit switch
+    DigitalInput *                  m_pLeftArmRaiseLimitSwitch;             // Left arm raise limit switch
+    DigitalInput *                  m_pRightArmRaiseLimitSwitch;            // Right arm raise limit switch
+    DigitalInput *                  m_pAutonomousLeftRightSwitch;           // Indicates if the robot is starting on the left or right
+    DigitalInput *                  m_pAutonomousCenterSwitch;              // Indicates if the robot will start in the center
     DigitalInput *                  m_pAutonomous1Switch;                   // Switch to select autonomous routine 1
     DigitalInput *                  m_pAutonomous2Switch;                   // Switch to select autonomous routine 2
     DigitalInput *                  m_pAutonomous3Switch;                   // Switch to select autonomous routine 3
@@ -311,8 +315,8 @@ private:
     // Note: Only need to have a thread here and tie it to
     // the RobotCamera class, which handles everything else.
     std::thread                     m_CameraThread;
-    TriggerChangeValues *           m_pToggleCameraTrigger;
-    TriggerChangeValues *           m_pToggleCameraImageTrigger;
+    TriggerChangeValues *           m_pToggleFullProcessingTrigger;
+    TriggerChangeValues *           m_pToggleProcessedImageTrigger;
 
     // Serial port configuration
     static const int                SERIAL_PORT_BUFFER_SIZE_BYTES           = 1024;
@@ -347,36 +351,39 @@ private:
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
 
     // Driver buttons
-    static const int                HANG_POLE_RAISE_LOWER_BUTTON            = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  1;
-    static const int                HANG_POLE_EXTEND_RETRACT_BUTTON         = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  3;
+    static const int                HANG_POLE_RAISE_LOWER_BUTTON            = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  6 :  1;
+    static const int                HANG_POLE_EXTEND_RETRACT_BUTTON         = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  3;
+    static const int                DRIVER_CONVEYOR_FORWARD_BUTTON          = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  4;
     static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  5;
     static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
-    static const int                CAMERA_TOGGLE_BUTTON                    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  7;
+    static const int                CAMERA_TOGGLE_FULL_PROCESSING_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  7;
     static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  8;
-    static const int                CAMERA_DISABLE_IMAGE_PROCESSING_BUTTON  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
-    static const int                CAMERA_ENABLE_IMAGE_PROCESSING_BUTTON   = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 : 10;
+    static const int                SELECT_FRONT_CAMERA_BUTTON              = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
+    static const int                SELECT_BACK_CAMERA_BUTTON               = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 : 10;
     static const int                DRIVE_CONTROLS_FORWARD_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 15 : 11;
     static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 16 : 12;
     
     // Control buttons
-    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MIN = 160;
-    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MAX = 200;
-    static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
-    static const int                INTAKE_ARMS_HORIZONTAL_OUT_BUTTON       = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE     = 180;
+    static const int                CONVEYOR_FORWARD_FAST_AXIS              = 1;
+    static const int                CONVEYOR_FORWARD_SLOW_AXIS              = 5;
+    static const int                CONVEYOR_FORWARD_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
+    static const int                CONVEYOR_REVERSE_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
     static const int                INTAKE_FORWARD_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  3;
     static const int                INTAKE_REVERSE_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  4;
-    static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  5;
-    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  6;
+    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  5;
+    //static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  6;
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  6;
     static const int                ESTOP_BUTTON                            = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 :  8;
 
     // CAN Signals
     static const int                LEFT_MOTORS_CAN_START_ID                = 1;
     static const int                RIGHT_MOTORS_CAN_START_ID               = 3;
-    static const int                SIDE_DRIVE_MOTORS_CAN_START_ID          = 5;
+    static const int                CONVEYOR_MOTORS_CAN_START_ID            = 5;
     static const int                SHOOTER_MOTORS_CAN_START_ID             = 7;
     static const int                INTAKE_MOTORS_VERTICAL_CAN_START_ID     = 9;
     static const int                INTAKE_MOTORS_CAN_START_ID              = 11;
-    static const int                CONVEYOR_MOTORS_CAN_START_ID            = 13;
+    //static const int                SIDE_DRIVE_MOTORS_CAN_START_ID          = 13;
 
     // PWM Signals
     // (none)
@@ -387,6 +394,10 @@ private:
     // Digital I/O Signals
     static const int                LEFT_ARM_LOWER_LIMIT_SWITCH_INPUT       = 0;
     static const int                RIGHT_ARM_LOWER_LIMIT_SWITCH_INPUT      = 1;
+    static const int                LEFT_ARM_RAISE_LIMIT_SWITCH_INPUT       = 2;
+    static const int                RIGHT_ARM_RAISE_LIMIT_SWITCH_INPUT      = 3;
+    static const int                AUTONOMOUS_LEFT_RIGHT_SWITCH            = 4;
+    static const int                AUTONOMOUS_CENTER_SWITCH                = 5;
     static const int                AUTONOMOUS_1_SWITCH                     = 7;
     static const int                AUTONOMOUS_2_SWITCH                     = 8;
     static const int                AUTONOMOUS_3_SWITCH                     = 9;
@@ -413,6 +424,7 @@ private:
     static const int                NUMBER_OF_INTAKE_MOTORS                 = 2;
     static const int                NUMBER_OF_CONVEYOR_MOTORS               = 2;
     static const int                NUMBER_OF_SHOOTER_MOTORS                = 2;
+    static const int                POV_INPUT_TOLERANCE_VALUE               = 20;
     static const int                SCALE_TO_PERCENT                        = 100;
     static const int                QUADRATURE_ENCODING_ROTATIONS           = 4096;
     static const int                GAME_DATA_NEAR_SWITCH_INDEX             = 0;
@@ -438,6 +450,8 @@ private:
     static constexpr double         INCHING_DRIVE_DELAY_S                   =  0.10;
     static constexpr double         INTAKE_MOTOR_SPEED                      =  1.00;
     static constexpr double         INTAKE_ARM_MOTOR_SPEED                  =  0.30;
+    static constexpr double         CONVEYOR_MOTOR_SPEED_SLOW               =  0.80;
+    static constexpr double         CONVEYOR_MOTOR_SPEED_FAST               =  0.95;
     
     static constexpr double         CAMERA_RUN_INTERVAL_S                   =  1.00;
     static constexpr double         I2C_RUN_INTERVAL_S                      =  0.10;
@@ -528,14 +542,22 @@ inline double YtaRobot::GetThrottleControl(YtaController * pController)
 ////////////////////////////////////////////////////////////////
 inline double YtaRobot::GetGyroValue(AnalogGyro * pSensor)
 {
+    double value = 0.0;
     if (pSensor != nullptr)
     {
-        return pSensor->GetAngle();
+        value = pSensor->GetAngle();
     }
     else
     {
-        return m_pGyro->GetAngle();
+        value = m_pGyro->GetAngle();
     }
+    
+    if (DEBUG_PRINTS)
+    {
+        SmartDashboard::PutNumber("Gyro angle", value);
+    }
+    
+    return value;
 }
 
 

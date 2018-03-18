@@ -118,8 +118,8 @@ private:
     // Camera, sinks, sources
     static cs::UsbCamera                        m_Cam0;                             // USB camera 0
     static cs::CvSink                           m_Cam0Sink;                         // Sink for camera 0
-    //static cs::UsbCamera                        m_Cam1;                             // USB camera 1
-    //static cs::CvSink                           m_Cam1Sink;                         // Sink for camera 1
+    static cs::UsbCamera                        m_Cam1;                             // USB camera 1
+    static cs::CvSink                           m_Cam1Sink;                         // Sink for camera 1
     static cs::CvSource                         m_CameraOutput;                     // Output source for processed images
     
     // Mats
@@ -184,6 +184,7 @@ inline void RobotCamera::SetFullProcessing(bool bState)
         // If processing was previously enabled,
         // need to switch back to the default mat.
         m_pDashboardMat = &m_SourceMat;
+        SmartDashboard::PutString("Camera Output", "Default");
     }
 }
 

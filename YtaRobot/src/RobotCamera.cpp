@@ -25,8 +25,8 @@
 // STATIC MEMBER DATA
 cs::UsbCamera                                   RobotCamera::m_Cam0;
 cs::CvSink                                      RobotCamera::m_Cam0Sink;
-//cs::UsbCamera                                   RobotCamera::m_Cam1;
-//cs::CvSink                                      RobotCamera::m_Cam1Sink;
+cs::UsbCamera                                   RobotCamera::m_Cam1;
+cs::CvSink                                      RobotCamera::m_Cam1Sink;
 cs::CvSource                                    RobotCamera::m_CameraOutput;
 
 cv::Mat                                         RobotCamera::m_SourceMat;
@@ -66,15 +66,15 @@ void RobotCamera::VisionThread()
     
     // Start image capture
     m_Cam0 = CameraServer::GetInstance()->StartAutomaticCapture();//CAMERA_0_DEV_NUM);
-    //m_Cam1 = CameraServer::GetInstance()->StartAutomaticCapture();//CAMERA_1_DEV_NUM);
+    m_Cam1 = CameraServer::GetInstance()->StartAutomaticCapture();//CAMERA_1_DEV_NUM);
     
     // Set image resolution
     m_Cam0.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
-    //m_Cam1.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
+    m_Cam1.SetResolution(CAMERA_X_RES, CAMERA_Y_RES);
     
     // Connect the sinks and sources
     m_Cam0Sink = CameraServer::GetInstance()->GetVideo(m_Cam0);
-    //m_Cam1Sink = CameraServer::GetInstance()->GetVideo(m_Cam1);
+    m_Cam1Sink = CameraServer::GetInstance()->GetVideo(m_Cam1);
     m_CameraOutput = CameraServer::GetInstance()->PutVideo(CAMERA_OUTPUT_NAME, CAMERA_X_RES, CAMERA_Y_RES);
     
     // Set the default image to display
@@ -94,7 +94,7 @@ void RobotCamera::VisionThread()
         }
         else if (m_Camera == BACK_USB)
         {
-            //grabFrameResult = m_Cam1Sink.GrabFrame(m_SourceMat);
+            grabFrameResult = m_Cam1Sink.GrabFrame(m_SourceMat);
         }
         else
         {

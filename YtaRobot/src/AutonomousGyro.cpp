@@ -33,15 +33,16 @@
 ////////////////////////////////////////////////////////////////
 bool YtaRobot::AutonomousGyroLeftTurn(double destAngle, double turnSpeed)
 {
-    // 2017 LEFT FORWARD DRIVE IS NEGATIVE
-    // 2017 RIGHT FORWARD DRIVE IS POSITIVE    
-    // 2017 LEFT TURNS DECREASE GYRO ANGLE
+    // 2018 LEFT FORWARD DRIVE IS POSITIVE
+    // 2018 RIGHT FORWARD DRIVE IS NEGATIVE    
+    // 2018 LEFT TURNS DECREASE GYRO ANGLE
+    // Left turn is left motors back, right motors forward
     
     double startAngle = m_pGyro->GetAngle();
     
     // Left turns are right motors forward, left motors reverse
-    m_pLeftDriveMotors->Set(turnSpeed);
-    m_pRightDriveMotors->Set(turnSpeed);
+    m_pLeftDriveMotors->Set(-turnSpeed);
+    m_pRightDriveMotors->Set(-turnSpeed);
     
     m_pSafetyTimer->Reset();
     m_pSafetyTimer->Start();
@@ -54,7 +55,7 @@ bool YtaRobot::AutonomousGyroLeftTurn(double destAngle, double turnSpeed)
             break;
         }
         
-        SmartDashboard::PutNumber("Gyro: ", m_pGyro->GetAngle());
+        SmartDashboard::PutNumber("Gyro angle", m_pGyro->GetAngle());
     }
     
     m_pLeftDriveMotors->Set(OFF);
@@ -84,15 +85,16 @@ bool YtaRobot::AutonomousGyroLeftTurn(double destAngle, double turnSpeed)
 ////////////////////////////////////////////////////////////////
 bool YtaRobot::AutonomousGyroRightTurn(double destAngle, double turnSpeed)
 {
-    // 2017 LEFT FORWARD DRIVE IS NEGATIVE
-    // 2017 RIGHT FORWARD DRIVE IS POSITIVE
-    // 2017 RIGHT TURNS INCREASE GYRO ANGLE
+    // 2018 LEFT FORWARD DRIVE IS POSITIVE
+    // 2018 RIGHT FORWARD DRIVE IS NEGATIVE
+    // 2018 RIGHT TURNS INCREASE GYRO ANGLE
+    // Right turn is left motors forward, right motors back
     
     double startAngle = m_pGyro->GetAngle();
     
     // Right turns are left motors forward, right motors reverse
-    m_pLeftDriveMotors->Set(-turnSpeed);
-    m_pRightDriveMotors->Set(-turnSpeed);
+    m_pLeftDriveMotors->Set(turnSpeed);
+    m_pRightDriveMotors->Set(turnSpeed);
     
     m_pSafetyTimer->Reset();
     m_pSafetyTimer->Start();
@@ -105,7 +107,7 @@ bool YtaRobot::AutonomousGyroRightTurn(double destAngle, double turnSpeed)
             break;
         }
         
-        SmartDashboard::PutNumber("Gyro: ", m_pGyro->GetAngle());
+        SmartDashboard::PutNumber("Gyro angle", m_pGyro->GetAngle());
     }
     
     m_pLeftDriveMotors->Set(OFF);
