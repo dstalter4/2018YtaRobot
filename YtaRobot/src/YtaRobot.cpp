@@ -57,11 +57,15 @@ YtaRobot::YtaRobot()
 //, m_pSideDriveMotors                (new TalonMotorGroup(NUMBER_OF_SIDE_DRIVE_MOTORS, SIDE_DRIVE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pIntakeArmsVerticalMotors       (new TalonMotorGroup(NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS, INTAKE_MOTORS_VERTICAL_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
-//, m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+, m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 //, m_pShooterMotors                  (new TalonMotorGroup(NUMBER_OF_SHOOTER_MOTORS, SHOOTER_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pLedRelay                       (new Relay(LED_RELAY_ID))
 , m_pLeftArmLowerLimitSwitch        (new DigitalInput(LEFT_ARM_LOWER_LIMIT_SWITCH_INPUT))
 , m_pRightArmLowerLimitSwitch       (new DigitalInput(RIGHT_ARM_LOWER_LIMIT_SWITCH_INPUT))
+, m_pLeftArmRaiseLimitSwitch        (new DigitalInput(LEFT_ARM_RAISE_LIMIT_SWITCH_INPUT))
+, m_pRightArmRaiseLimitSwitch       (new DigitalInput(RIGHT_ARM_RAISE_LIMIT_SWITCH_INPUT))
+, m_pAutonomousLeftRightSwitch      (new DigitalInput(AUTONOMOUS_LEFT_RIGHT_SWITCH))
+, m_pAutonomousCenterSwitch         (new DigitalInput(AUTONOMOUS_CENTER_SWITCH))
 , m_pAutonomous1Switch              (new DigitalInput(AUTONOMOUS_1_SWITCH))
 , m_pAutonomous2Switch              (new DigitalInput(AUTONOMOUS_2_SWITCH))
 , m_pAutonomous3Switch              (new DigitalInput(AUTONOMOUS_3_SWITCH))
@@ -78,8 +82,8 @@ YtaRobot::YtaRobot()
 , m_pAccelerometer                  (new BuiltInAccelerometer)
 , m_pGyro                           (new ADXRS450_Gyro())
 , m_CameraThread                    (RobotCamera::VisionThread)
-, m_pToggleCameraTrigger            (new TriggerChangeValues())
-, m_pToggleCameraImageTrigger       (new TriggerChangeValues())
+, m_pToggleFullProcessingTrigger    (new TriggerChangeValues())
+, m_pToggleProcessedImageTrigger    (new TriggerChangeValues())
 , m_SerialPortBuffer                ()
 , m_pSerialPort                     (new SerialPort(SERIAL_PORT_BAUD_RATE, SerialPort::kMXP, SERIAL_PORT_NUM_DATA_BITS, SerialPort::kParity_None, SerialPort::kStopBits_One))
 , m_I2cData                         ()
@@ -176,7 +180,7 @@ void YtaRobot::InitialStateSetup()
     m_pRightDriveMotors->Set(OFF);
     m_pIntakeArmsVerticalMotors->Set(OFF);
     m_pIntakeMotors->Set(OFF);
-    //m_pConveyorMotors->Set(OFF);
+    m_pConveyorMotors->Set(OFF);
     //m_pShooterMotors->Set(OFF);
     
     // Configure brake or coast for the drive motors
@@ -249,7 +253,7 @@ void YtaRobot::OperatorControl()
 
         //SonarSensorSequence();
         
-        //GyroSequence();
+        GyroSequence();
 
         //SerialPortSequence();
         
@@ -296,11 +300,53 @@ void YtaRobot::CubeIntakeSequence()
         m_pIntakeMotors->Set(OFF);
     }
     
+    // Conveyor roller motors
+    /*
+    if (m_pControlJoystick->GetRawButton(CONVEYOR_FORWARD_BUTTON))
+    {
+        m_pConveyorMotors->Set(CONVEYOR_MOTOR_SPEED_SLOW);
+    }
+    else if (m_pControlJoystick->GetRawButton(CONVEYOR_REVERSE_BUTTON))
+    {
+        m_pConveyorMotors->Set(-CONVEYOR_MOTOR_SPEED_SLOW);
+    }
+    else
+    {
+        m_pConveyorMotors->Set(OFF);
+    }
+    */
+    
+    double conveyorSlowControl = m_pControlJoystick->GetRawAxis(CONVEYOR_FORWARD_SLOW_AXIS);
+    double conveyorFastControl = m_pControlJoystick->GetRawAxis(CONVEYOR_FORWARD_FAST_AXIS);
+    // Both controllers can move the conveyor forward
+    if (conveyorSlowControl < JOYSTICK_TRIM_LOWER_LIMIT || m_pDriveJoystick->GetRawButton(DRIVER_CONVEYOR_FORWARD_BUTTON))
+    {
+        m_pConveyorMotors->Set(CONVEYOR_MOTOR_SPEED_SLOW);
+    }
+    else if (conveyorSlowControl > JOYSTICK_TRIM_UPPER_LIMIT)
+    {
+        m_pConveyorMotors->Set(-CONVEYOR_MOTOR_SPEED_SLOW);
+    }
+    else if (conveyorFastControl < JOYSTICK_TRIM_LOWER_LIMIT)
+    {
+        m_pConveyorMotors->Set(CONVEYOR_MOTOR_SPEED_FAST);
+    }
+    else if (conveyorFastControl > JOYSTICK_TRIM_UPPER_LIMIT)
+    {
+        m_pConveyorMotors->Set(-CONVEYOR_MOTOR_SPEED_FAST);
+    }
+    else
+    {
+        m_pConveyorMotors->Set(OFF);
+    }
+    
+    /*
     // Intake arms up/down control
     // Limit switches are normally closed, so motors are applied when Get() is true
-    // TODO: Fix this logic for applying direction if arms aren't at same height
-    // (Multi limit switch control, not single)
-    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_UP_BUTTON))
+    // TODO: This logic waits until both limit switches are tripped, it could operate
+    //       each arm independently if the motors are decoupled.
+    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_UP_BUTTON)
+        && (m_pLeftArmRaiseLimitSwitch->Get() || m_pRightArmRaiseLimitSwitch->Get()))
     {
         m_pIntakeArmsVerticalMotors->Set(INTAKE_ARM_MOTOR_SPEED);
     }
@@ -308,6 +354,30 @@ void YtaRobot::CubeIntakeSequence()
              && (m_pLeftArmLowerLimitSwitch->Get() || m_pRightArmLowerLimitSwitch->Get()))
     {
         m_pIntakeArmsVerticalMotors->Set(-INTAKE_ARM_MOTOR_SPEED);
+    }
+    else
+    {
+        m_pIntakeArmsVerticalMotors->Set(OFF);
+    }
+    */
+    
+    // Intake arms up/down, where if no down input is present, arms automatically return up
+    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_VERTICAL_DOWN_BUTTON))
+    {
+        // Explicitly check the limit switches in the 'if' body so that when
+        // they are both tripped, things don't start to return up
+        if (m_pLeftArmLowerLimitSwitch->Get() || m_pRightArmLowerLimitSwitch->Get())
+        {
+            m_pIntakeArmsVerticalMotors->Set(-INTAKE_ARM_MOTOR_SPEED);
+        }
+        else
+        {
+            m_pIntakeArmsVerticalMotors->Set(OFF);
+        }
+    }
+    else if (m_pLeftArmRaiseLimitSwitch->Get() || m_pRightArmRaiseLimitSwitch->Get())
+    {
+        m_pIntakeArmsVerticalMotors->Set(INTAKE_ARM_MOTOR_SPEED);
     }
     else
     {
@@ -393,21 +463,15 @@ void YtaRobot::SolenoidSequence()
     }
     
     // Last check the intake arms horizontal control
-    int povValue = m_pControlJoystick->GetPOV();
-    if ((povValue > INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MIN) && (povValue < INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE_MAX))
-    //if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_IN_BUTTON))
+    //int povValue = m_pControlJoystick->GetPOV();
+    //if ((povValue > (INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE - POV_INPUT_TOLERANCE_VALUE))
+    //    && (povValue < (INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE + POV_INPUT_TOLERANCE_VALUE)))
+    if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_IN_BUTTON))
     {
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kForward);
     }
-    /*
-    else if (m_pControlJoystick->GetRawButton(INTAKE_ARMS_HORIZONTAL_OUT_BUTTON))
-    {
-        m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
-    }
-    */
     else
     {
-        //m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
         m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kReverse);
     }
 }
@@ -439,6 +503,7 @@ void YtaRobot::SonarSensorSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::GyroSequence()
 {
+    GetGyroValue(nullptr);
 }
 
 
@@ -520,36 +585,39 @@ void YtaRobot::I2cSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::CameraSequence()
 {
+    static bool bFullProcessing = false;
+    
     // To not kill the CPU, only do full vision processing (particle analysis) periodically
     if (m_pCameraRunTimer->Get() >= CAMERA_RUN_INTERVAL_S)
     {
         m_pCameraRunTimer->Reset();
     }
     
-    // Look for full processing to be enabled/disabled
-    if (m_pDriveJoystick->GetRawButton(CAMERA_ENABLE_IMAGE_PROCESSING_BUTTON))
+    // Check for any change in camera
+    if (m_pDriveJoystick->GetRawButton(SELECT_FRONT_CAMERA_BUTTON))
     {
-        RobotCamera::SetFullProcessing(true);
+        RobotCamera::SetCamera(RobotCamera::FRONT_USB);
     }
-    else if (m_pDriveJoystick->GetRawButton(CAMERA_DISABLE_IMAGE_PROCESSING_BUTTON))
+    else if (m_pDriveJoystick->GetRawButton(SELECT_BACK_CAMERA_BUTTON))
     {
-        RobotCamera::SetFullProcessing(false);
+        RobotCamera::SetCamera(RobotCamera::BACK_USB);
     }
     else
     {
     }
     
-    // Check for any camera toggling
-    m_pToggleCameraTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_BUTTON);
-    m_pToggleCameraImageTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
-    
-    if (m_pToggleCameraTrigger->DetectChange())
+    // Look for full processing to be enabled/disabled
+    m_pToggleFullProcessingTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_FULL_PROCESSING_BUTTON);
+    if (m_pToggleFullProcessingTrigger->DetectChange())
     {
-        // 2018: Only one camera, no need to toggle
-        //RobotCamera::ToggleCamera();
+        // Change state first, because the default is set before this code runs
+        bFullProcessing = !bFullProcessing;
+        RobotCamera::SetFullProcessing(bFullProcessing);
     }
     
-    if (m_pToggleCameraImageTrigger->DetectChange())
+    // Look for the displayed processed image to be changed
+    m_pToggleProcessedImageTrigger->m_bCurrentValue = m_pDriveJoystick->GetRawButton(CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON);
+    if (m_pToggleProcessedImageTrigger->DetectChange())
     {
         RobotCamera::ToggleCameraProcessedImage();
     }
@@ -569,8 +637,6 @@ void YtaRobot::CameraSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::DriveControlSequence()
 {
-    SmartDashboard::PutNumber("Gyro angle", GetGyroValue(nullptr));
-    
     // Computes what the maximum drive speed could be.
     // It's a little unfortunate we have to handle throttle this way,
     // but GetThrottle is not a member of the GenericHID base class,

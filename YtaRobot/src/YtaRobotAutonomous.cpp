@@ -64,7 +64,8 @@ void YtaRobot::Autonomous()
     
     // Auto routine 1
     //if ( YtaRobotAutonomous::ROUTINE_1 )
-    if ( m_pAutonomous1Switch->Get() )
+    //if ( m_pAutonomous1Switch->Get() )
+    if (!m_pAutonomousCenterSwitch->Get())
     {
         DisplayMessage("Auto routine 1.");
         AutonomousRoutine1();
@@ -72,15 +73,16 @@ void YtaRobot::Autonomous()
     
     // Auto routine 2
     //else if ( YtaRobotAutonomous::ROUTINE_2 )
-    else if ( m_pAutonomous2Switch->Get() )
+    //else if ( m_pAutonomous2Switch->Get() )
+    else if (m_pAutonomousCenterSwitch->Get())
     {
         DisplayMessage("Auto routine 2.");
         AutonomousRoutine2();
     }
     
     // Auto routine 3
-    //else if ( YtaRobotAutonomous::ROUTINE_3 )
-    else if ( m_pAutonomous3Switch->Get() )
+    else if ( YtaRobotAutonomous::ROUTINE_3 )
+    //else if ( m_pAutonomous3Switch->Get() )
     {
         DisplayMessage("Auto routine 3.");
         AutonomousRoutine3();
