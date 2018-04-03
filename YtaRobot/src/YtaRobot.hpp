@@ -216,6 +216,9 @@ private:
     
     // Function to control cube intake
     void CubeIntakeSequence();
+    
+    // Function to control climbing
+    void ClimbSequence();
 
     // Main sequence for LED control
     void LedSequence();
@@ -264,7 +267,7 @@ private:
     TalonMotorGroup *               m_pIntakeArmsVerticalMotors;            // Intake of the cube vertical control
     TalonMotorGroup *               m_pIntakeMotors;                        // Intake of the cube
     TalonMotorGroup *               m_pConveyorMotors;                      // Conveyor belt movement of the cube
-    //TalonMotorGroup *               m_pShooterMotors;                       // Shooting of the cube
+    TalonMotorGroup *               m_pClimbMotors;                         // Robot climb
     
     // Spike Relays
     Relay *                         m_pLedRelay;                            // Controls whether or not the LEDs are lit up
@@ -299,6 +302,7 @@ private:
     // (none)
     
     // Timers
+    Timer *                         m_pClimbPulseTimer;                     // Time a pulse of the climb motors to counteract back drive
     Timer *                         m_pAutonomousTimer;                     // Time things during autonomous
     Timer *                         m_pInchingDriveTimer;                   // Keep track of an inching drive operation
     Timer *                         m_pI2cTimer;                            // Keep track of how often to do I2C operations
@@ -351,11 +355,12 @@ private:
     static const int                CONTROL_JOYSTICK_PORT                   = 1;
 
     // Driver buttons
-    static const int                HANG_POLE_RAISE_LOWER_BUTTON            = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  6 :  1;
-    static const int                HANG_POLE_EXTEND_RETRACT_BUTTON         = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  3;
+    static const int                CLIMB_PULSE_BUTTON                      = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  7 :  3;
     static const int                DRIVER_CONVEYOR_FORWARD_BUTTON          = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  4;
-    static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  5;
-    static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
+    static const int                CLIMB_DOWN_BUTTON                       = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  5;
+    static const int                CLIMB_UP_BUTTON                         = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
+    //static const int                SIDE_DRIVE_LEFT_BUTTON                  = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  5;
+    //static const int                SIDE_DRIVE_RIGHT_BUTTON                 = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  6;
     static const int                CAMERA_TOGGLE_FULL_PROCESSING_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  7;
     static const int                CAMERA_TOGGLE_PROCESSED_IMAGE_BUTTON    = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  8;
     static const int                SELECT_FRONT_CAMERA_BUTTON              = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  9;
@@ -364,23 +369,26 @@ private:
     static const int                DRIVE_CONTROLS_REVERSE_BUTTON           = (DRIVE_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 16 : 12;
     
     // Control buttons
-    static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE     = 180;
+    //static const int                INTAKE_ARMS_HORIZONTAL_IN_POV_VALUE     = 180;
     static const int                CONVEYOR_FORWARD_FAST_AXIS              = 1;
     static const int                CONVEYOR_FORWARD_SLOW_AXIS              = 5;
-    static const int                CONVEYOR_FORWARD_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
-    static const int                CONVEYOR_REVERSE_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
+    static const int                HANG_POLE_RETRACT_AXIS                  = 2;
+    static const int                HANG_POLE_EXTEND_AXIS                   = 3;
+    //static const int                CONVEYOR_FORWARD_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  8 :  1;
+    //static const int                CONVEYOR_REVERSE_BUTTON                 = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ?  9 :  2;
     static const int                INTAKE_FORWARD_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 10 :  3;
     static const int                INTAKE_REVERSE_BUTTON                   = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 11 :  4;
-    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  5;
-    //static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  6;
-    static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  6;
+    static const int                INTAKE_ARMS_VERTICAL_DOWN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  5;
+    //static const int                INTAKE_ARMS_VERTICAL_UP_BUTTON          = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 12 :  5;
+    static const int                INTAKE_ARMS_HORIZONTAL_IN_BUTTON        = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  6;
+    //static const int                INTAKE_ARMS_HORIZONTAL_OUT_BUTTON       = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 13 :  6;
     static const int                ESTOP_BUTTON                            = (CONTROL_CONTROLLER_TYPE == LOGITECH_EXTREME) ? 14 :  8;
 
     // CAN Signals
     static const int                LEFT_MOTORS_CAN_START_ID                = 1;
     static const int                RIGHT_MOTORS_CAN_START_ID               = 3;
     static const int                CONVEYOR_MOTORS_CAN_START_ID            = 5;
-    static const int                SHOOTER_MOTORS_CAN_START_ID             = 7;
+    static const int                CLIMB_MOTORS_CAN_START_ID               = 7;
     static const int                INTAKE_MOTORS_VERTICAL_CAN_START_ID     = 9;
     static const int                INTAKE_MOTORS_CAN_START_ID              = 11;
     //static const int                SIDE_DRIVE_MOTORS_CAN_START_ID          = 13;
@@ -408,10 +416,10 @@ private:
     // Solenoid Signals
     static const int                INTAKE_HORIZONTAL_SOLENOID_FWD          = 0;
     static const int                INTAKE_HORIZONTAL_SOLENOID_REV          = 1;
-    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_FWD      = 2;
-    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_REV      = 3;
-    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_FWD   = 4;
-    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_REV   = 5;
+    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_FWD   = 2;
+    static const int                HANG_POLE_EXTEND_RETRACT_SOLENOID_REV   = 3;
+    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_FWD      = 4;
+    static const int                HANG_POLE_RAISE_LOWER_SOLENOID_REV      = 5;
     
     // Misc
     static const int                OFF                                     = 0;
@@ -423,8 +431,8 @@ private:
     static const int                NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS    = 2;
     static const int                NUMBER_OF_INTAKE_MOTORS                 = 2;
     static const int                NUMBER_OF_CONVEYOR_MOTORS               = 2;
-    static const int                NUMBER_OF_SHOOTER_MOTORS                = 2;
-    static const int                POV_INPUT_TOLERANCE_VALUE               = 20;
+    static const int                NUMBER_OF_CLIMB_MOTORS                  = 2;
+    static const int                POV_INPUT_TOLERANCE_VALUE               = 30;
     static const int                SCALE_TO_PERCENT                        = 100;
     static const int                QUADRATURE_ENCODING_ROTATIONS           = 4096;
     static const int                GAME_DATA_NEAR_SWITCH_INDEX             = 0;
@@ -453,6 +461,7 @@ private:
     static constexpr double         CONVEYOR_MOTOR_SPEED_SLOW               =  0.80;
     static constexpr double         CONVEYOR_MOTOR_SPEED_FAST               =  0.95;
     
+    static constexpr double         CLIMB_PULSE_DELAY_INTERVAL_S            =  0.75;
     static constexpr double         CAMERA_RUN_INTERVAL_S                   =  1.00;
     static constexpr double         I2C_RUN_INTERVAL_S                      =  0.10;
     static constexpr double         SAFETY_TIMER_MAX_VALUE                  =  5.00;

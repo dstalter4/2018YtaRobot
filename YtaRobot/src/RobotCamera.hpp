@@ -148,8 +148,8 @@ private:
     static const char *                         CAMERA_OUTPUT_NAME;
     //static const int                            CAMERA_0_DEV_NUM                    = 0;
     //static const int                            CAMERA_1_DEV_NUM                    = 1;
-    static const int                            CAMERA_X_RES                        = 640;
-    static const int                            CAMERA_Y_RES                        = 480;
+    static const int                            CAMERA_X_RES                        = 320;
+    static const int                            CAMERA_Y_RES                        = 240;
     
     static constexpr double                     TARGET_WIDTH_INCHES                 =  2.0;
     static constexpr double                     TARGET_HEIGHT_INCHES                = 16.0;

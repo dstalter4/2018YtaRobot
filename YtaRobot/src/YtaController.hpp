@@ -51,9 +51,8 @@ public:
 private:
     
     // Joystick axes inputs are:
-    //    -1
-    // -1   +1
-    //    +1
+    // L2 0->1 R2
+    //  -1    +1
     
     enum RawAxes
     {
