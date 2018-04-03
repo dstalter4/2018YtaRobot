@@ -58,7 +58,7 @@ YtaRobot::YtaRobot()
 , m_pIntakeArmsVerticalMotors       (new TalonMotorGroup(NUMBER_OF_INTAKE_ARM_VERTICAL_MOTORS, INTAKE_MOTORS_VERTICAL_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pIntakeMotors                   (new TalonMotorGroup(NUMBER_OF_INTAKE_MOTORS, INTAKE_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
 , m_pConveyorMotors                 (new TalonMotorGroup(NUMBER_OF_CONVEYOR_MOTORS, CONVEYOR_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
-//, m_pShooterMotors                  (new TalonMotorGroup(NUMBER_OF_SHOOTER_MOTORS, SHOOTER_MOTORS_CAN_START_ID, MotorGroupControlMode::INVERSE, FeedbackDevice::None))
+, m_pClimbMotors                    (new TalonMotorGroup(NUMBER_OF_CLIMB_MOTORS, CLIMB_MOTORS_CAN_START_ID, MotorGroupControlMode::FOLLOW, FeedbackDevice::None))
 , m_pLedRelay                       (new Relay(LED_RELAY_ID))
 , m_pLeftArmLowerLimitSwitch        (new DigitalInput(LEFT_ARM_LOWER_LIMIT_SWITCH_INPUT))
 , m_pRightArmLowerLimitSwitch       (new DigitalInput(RIGHT_ARM_LOWER_LIMIT_SWITCH_INPUT))
@@ -74,6 +74,7 @@ YtaRobot::YtaRobot()
 , m_pHangPoleExtendRetractSolenoid  (new DoubleSolenoid(HANG_POLE_EXTEND_RETRACT_SOLENOID_FWD, HANG_POLE_EXTEND_RETRACT_SOLENOID_REV))
 , m_pHangPoleRaiseLowerTrigger      (new TriggerChangeValues())
 , m_pHangPoleExtendRetractTrigger   (new TriggerChangeValues())
+, m_pClimbPulseTimer                (new Timer())
 , m_pAutonomousTimer                (new Timer())
 , m_pInchingDriveTimer              (new Timer())
 , m_pI2cTimer                       (new Timer())
@@ -150,6 +151,7 @@ YtaRobot::YtaRobot()
     }
     
     // Reset all timers
+    m_pClimbPulseTimer->Reset();
     m_pAutonomousTimer->Reset();
     m_pInchingDriveTimer->Reset();
     m_pI2cTimer->Reset();
@@ -181,7 +183,7 @@ void YtaRobot::InitialStateSetup()
     m_pIntakeArmsVerticalMotors->Set(OFF);
     m_pIntakeMotors->Set(OFF);
     m_pConveyorMotors->Set(OFF);
-    //m_pShooterMotors->Set(OFF);
+    m_pClimbMotors->Set(OFF);
     
     // Configure brake or coast for the drive motors
     m_pLeftDriveMotors->SetBrakeMode();
@@ -196,10 +198,14 @@ void YtaRobot::InitialStateSetup()
     
     // Solenoids to off states
     m_pHangPoleRaiseLowerSolenoid->Set(DoubleSolenoid::kOff);
-    m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kOff);
     m_pIntakeArmsHorizontalSolenoid->Set(DoubleSolenoid::kOff);
     
+    // Force hang pole down
+    m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kReverse);
+    
     // Stop/clear any timers, just in case
+    m_pClimbPulseTimer->Stop();
+    m_pClimbPulseTimer->Reset();
     m_pInchingDriveTimer->Stop();
     m_pInchingDriveTimer->Reset();
     m_pSafetyTimer->Stop();
@@ -246,6 +252,8 @@ void YtaRobot::OperatorControl()
         //SideDriveSequence();
         
         CubeIntakeSequence();
+        
+        ClimbSequence();
         
         //LedSequence();
 
@@ -388,6 +396,78 @@ void YtaRobot::CubeIntakeSequence()
 
 
 ////////////////////////////////////////////////////////////////
+/// @method YtaRobot::ClimbSequence
+///
+/// This method contains the main workflow for controlling the
+/// robot climb.
+///
+////////////////////////////////////////////////////////////////
+void YtaRobot::ClimbSequence()
+{
+    enum ClimbPulseState
+    {
+        CLIMB_PULSE_NONE,
+        CLIMB_PULSE_MOTOR_ON,
+        CLIMB_PULSE_MOTOR_OFF,
+    };
+    static ClimbPulseState climbPulseState = CLIMB_PULSE_NONE;
+    
+    switch (climbPulseState)
+    {
+        case CLIMB_PULSE_NONE:
+        {
+            // Climb motor control
+            if (m_pDriveJoystick->GetRawButton(CLIMB_UP_BUTTON))
+            {
+                m_pClimbMotors->Set(ON);
+            }
+            else if (m_pDriveJoystick->GetRawButton(CLIMB_DOWN_BUTTON))
+            {
+                m_pClimbMotors->Set(-ON);
+            }
+            else if (m_pDriveJoystick->GetRawButton(CLIMB_PULSE_BUTTON))
+            {
+                m_pClimbMotors->Set(ON);
+                m_pClimbPulseTimer->Start();
+                climbPulseState = CLIMB_PULSE_MOTOR_ON;
+            }
+            else
+            {
+                m_pClimbMotors->Set(OFF);
+            }
+            break;
+        }
+        case CLIMB_PULSE_MOTOR_ON:
+        {
+            if (m_pClimbPulseTimer->Get() > CLIMB_PULSE_DELAY_INTERVAL_S)
+            {
+                m_pClimbMotors->Set(OFF);
+                m_pClimbPulseTimer->Reset();
+                climbPulseState = CLIMB_PULSE_MOTOR_OFF;
+            }
+            break;
+        }
+        case CLIMB_PULSE_MOTOR_OFF:
+        {
+            if (m_pClimbPulseTimer->Get() > CLIMB_PULSE_DELAY_INTERVAL_S)
+            {
+                m_pClimbPulseTimer->Stop();
+                m_pClimbPulseTimer->Reset();
+                climbPulseState = CLIMB_PULSE_NONE;
+            }
+            break;
+        }
+        default:
+        {
+            ASSERT(false);
+            break;
+        }
+    }
+}
+
+
+
+////////////////////////////////////////////////////////////////
 /// @method YtaRobot::LedSequence
 ///
 /// This method contains the main workflow for controlling
@@ -419,7 +499,8 @@ void YtaRobot::LedSequence()
 ////////////////////////////////////////////////////////////////
 void YtaRobot::SolenoidSequence()
 {
-    static bool bHangPoleRaised = false;
+    /*
+    static bool bHangPoleRaised = true;
     static bool bHangPoleExtended = false;
     
     // Get the status of the solenoid control buttons
@@ -460,6 +541,20 @@ void YtaRobot::SolenoidSequence()
         }
         
         bHangPoleExtended = !bHangPoleExtended;
+    }
+    */
+    
+    // Check hang pole extend/retract
+    if (m_pControlJoystick->GetRawAxis(HANG_POLE_EXTEND_AXIS) > 0.0)
+    {
+        m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kForward);
+    }
+    else if (m_pControlJoystick->GetRawAxis(HANG_POLE_RETRACT_AXIS) > 0.0)
+    {
+        m_pHangPoleExtendRetractSolenoid->Set(DoubleSolenoid::kReverse);
+    }
+    else
+    {
     }
     
     // Last check the intake arms horizontal control
