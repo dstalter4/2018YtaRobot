@@ -82,7 +82,7 @@ namespace YtaRobotAutonomous
     static constexpr double DRIVE_TO_TOUCH_SWITCH_TIME_S        =  1.50;
     static constexpr double DRIVE_FROM_CENTER_TIME_1_S          =  1.25;
     static constexpr double DRIVE_FROM_CENTER_TIME_2_S          =  1.00;
-    static constexpr double DRIVE_INTO_SWITCH_DELAY_S           =  0.75;
+    static constexpr double DRIVE_INTO_SWITCH_DELAY_S           =  1.00;//0.75;
     static constexpr double CONVEYOR_MOVE_CUBE_TIME_S           =  2.00;
     static constexpr double COUNTERACT_COAST_TIME_S             =  0.25;
     static constexpr double ENCODER_DRIVE_MAX_DELAY_S           =  5.00;
